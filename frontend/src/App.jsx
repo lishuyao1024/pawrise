@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { Bell, CalendarDays, Download, LogOut, PawPrint, Repeat2, ShieldCheck, Syringe, UserRound } from "lucide-react";
+import { Bell, CalendarDays, Download, Eye, EyeOff, LogOut, PawPrint, Repeat2, ShieldCheck, Syringe, UserRound } from "lucide-react";
+import authBrandPanel from "./assets/auth-brand-panel.png";
 import damiMemory from "./assets/dami-memory.png";
 import damiProfile from "./assets/dami-profile.png";
 import roroMemory from "./assets/roro-memory.png";
@@ -172,6 +173,103 @@ function StatusPill({ status }) {
   return <span className={`status-pill ${status}`}>{status === "due-soon" ? "due soon" : status}</span>;
 }
 
+function AuthView({ onAuthenticate }) {
+  const [mode, setMode] = useState("login");
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [message, setMessage] = useState("");
+
+  function selectMode(nextMode) {
+    setMode(nextMode);
+    setMessage("");
+  }
+
+  function submitAuth(event) {
+    event.preventDefault();
+    if (mode === "signup" && !fullName.trim()) {
+      setMessage("Enter your full name to create an account.");
+      return;
+    }
+    if (!email.trim() || !password.trim()) {
+      setMessage("Enter your email address and password.");
+      return;
+    }
+    if (mode === "signup" && password.length < 8) {
+      setMessage("Use at least 8 characters for your password.");
+      return;
+    }
+    onAuthenticate({
+      email: email.trim(),
+      name: mode === "signup" ? fullName.trim() : "Sylvia Young",
+    });
+  }
+
+  return (
+    <main className="auth-page">
+      <section
+        aria-label="PawRise — Care today. Memories for life."
+        className="auth-brand-panel"
+        style={{ backgroundImage: `url(${authBrandPanel})` }}
+      >
+        <div className="sr-only">
+          <h1>PawRise</h1>
+          <p>Care today. Memories for life.</p>
+        </div>
+      </section>
+
+      <section className="auth-form-panel">
+        <div className="auth-form-shell">
+          <span className="auth-mobile-brand">PawRise</span>
+          <h1>{mode === "login" ? "Welcome back" : "Create your account"}</h1>
+          <p className="auth-intro">
+            {mode === "login" ? "Continue to your pet care journal." : "Start with your details. You can add your pets next."}
+          </p>
+
+          <div className="auth-tabs" role="tablist" aria-label="Account access">
+            <button aria-selected={mode === "login"} className={mode === "login" ? "active" : ""} onClick={() => selectMode("login")} role="tab" type="button">Log in</button>
+            <button aria-selected={mode === "signup"} className={mode === "signup" ? "active" : ""} onClick={() => selectMode("signup")} role="tab" type="button">Sign up</button>
+          </div>
+
+          <form className="auth-form" onSubmit={submitAuth}>
+            {mode === "signup" && (
+              <label>
+                <span>Full name</span>
+                <input autoComplete="name" onChange={(event) => setFullName(event.target.value)} placeholder="Your full name" type="text" value={fullName} />
+              </label>
+            )}
+            <label>
+              <span>Email address</span>
+              <input autoComplete="email" onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" type="email" value={email} />
+            </label>
+            <label>
+              <span>Password</span>
+              <div className="auth-password-field">
+                <input autoComplete={mode === "login" ? "current-password" : "new-password"} onChange={(event) => setPassword(event.target.value)} placeholder={mode === "signup" ? "At least 8 characters" : "Enter your password"} type={showPassword ? "text" : "password"} value={password} />
+                <button aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword((value) => !value)} type="button">
+                  {showPassword ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
+                </button>
+              </div>
+            </label>
+
+            {mode === "login" && <button className="auth-forgot" onClick={() => setMessage("Password reset is ready for account integration.")} type="button">Forgot password?</button>}
+            {message && <p className="auth-message" role="alert">{message}</p>}
+            <button className="auth-primary" type="submit">{mode === "login" ? "Continue" : "Create account"}</button>
+          </form>
+
+          <div className="auth-switch">
+            <span>{mode === "login" ? "New to PawRise?" : "Already have an account?"}</span>
+            <button onClick={() => selectMode(mode === "login" ? "signup" : "login")} type="button">
+              {mode === "login" ? "Create an account" : "Log in"}
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+}
+
 function HomeView({
   pets,
   reminders,
@@ -184,6 +282,7 @@ function HomeView({
   setToast,
   openPetDetail,
   openPage,
+  userName,
 }) {
   const visibleReminders = useMemo(
     () =>
@@ -202,7 +301,7 @@ function HomeView({
       <header className="topbar">
         <div>
           <span className="eyebrow">PawRise home</span>
-          <h1>Good {greeting}, Sylvia</h1>
+          <h1>Good {greeting}, {userName.split(" ")[0]}</h1>
           <p>See what needs care today, then jump into the right space when you need more detail.</p>
         </div>
         <div className="actions">
@@ -892,7 +991,7 @@ function MemoryTimelineView({
   );
 }
 
-function SettingsView({ setToast }) {
+function SettingsView({ onLogout, setToast, user }) {
   const [emailReminders, setEmailReminders] = useState(true);
   const [overdueAlerts, setOverdueAlerts] = useState(true);
   const [reminderTiming, setReminderTiming] = useState("3 days before");
@@ -914,8 +1013,8 @@ function SettingsView({ setToast }) {
             <div><h2>Account</h2><p>Your PawRise profile and sign-in details.</p></div>
           </div>
           <div className="account-row">
-            <div className="account-avatar">SY</div>
-            <div className="account-copy"><strong>Sylvia Young</strong><span>sylvia@example.com</span></div>
+            <div className="account-avatar">{user.name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase()}</div>
+            <div className="account-copy"><strong>{user.name}</strong><span>{user.email}</span></div>
             <button className="secondary-button" type="button" onClick={() => setToast("Profile editing is ready for account integration.")}>Edit profile</button>
           </div>
         </section>
@@ -959,7 +1058,7 @@ function SettingsView({ setToast }) {
             <span className="settings-icon logout-icon"><LogOut aria-hidden="true" /></span>
             <div><h2>Log out</h2><p>Sign out of PawRise on this device.</p></div>
           </div>
-          <button className="logout-button" type="button" onClick={() => setToast("Logged out in prototype mode.")}><LogOut aria-hidden="true" />Log out</button>
+          <button className="logout-button" type="button" onClick={onLogout}><LogOut aria-hidden="true" />Log out</button>
         </section>
       </section>
     </>
@@ -980,6 +1079,8 @@ function PlaceholderPage({ page, openPage }) {
 }
 
 export function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState({ name: "Sylvia Young", email: "sylvia@example.com" });
   const [activePage, setActivePage] = useState("Home");
   const [pets, setPets] = useState(initialPets);
   const [selectedPet, setSelectedPet] = useState("all");
@@ -1020,6 +1121,19 @@ export function App() {
   function openPage(page) {
     setActivePage(page);
     setToast(["My Pets", "Health & Care", "Memories", "Settings"].includes(page) ? `${page} opened.` : `${page} module is ready to build next.`);
+  }
+
+  function authenticate(nextUser) {
+    setUser(nextUser);
+    setIsAuthenticated(true);
+    setActivePage("Home");
+    setToast("Welcome to PawRise.");
+  }
+
+  function logout() {
+    setIsAuthenticated(false);
+    setActivePage("Home");
+    setToast("");
   }
 
   function openPetDetail(id) {
@@ -1237,6 +1351,10 @@ export function App() {
     setToast("Memory saved to the timeline.");
   }
 
+  if (!isAuthenticated) {
+    return <AuthView onAuthenticate={authenticate} />;
+  }
+
   return (
     <main className="app-shell">
       <aside className="sidebar" aria-label="Primary navigation">
@@ -1282,6 +1400,7 @@ export function App() {
             setDraft={setDraft}
             setToast={setToast}
             switchPet={switchPet}
+            userName={user.name}
           />
         )}
         {activePage === "My Pets" && (
@@ -1335,7 +1454,7 @@ export function App() {
             startAddMemory={startAddMemory}
           />
         )}
-        {activePage === "Settings" && <SettingsView setToast={setToast} />}
+        {activePage === "Settings" && <SettingsView onLogout={logout} setToast={setToast} user={user} />}
         {!["Home", "My Pets", "Health & Care", "Memories", "Settings"].includes(activePage) && <PlaceholderPage openPage={openPage} page={activePage} />}
 
         {toast && (
