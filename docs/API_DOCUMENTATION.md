@@ -92,7 +92,6 @@ YYYY-MM-DDTHH:MM:SSZ
 | Authentication | POST | `/auth/register` | No | Register a user |
 | Authentication | POST | `/auth/login` | No | Log in and receive an access token |
 | Authentication | GET | `/auth/me` | Yes | Get the current user |
-| Authentication | POST | `/auth/logout` | Yes | Revoke the current access token |
 | Pets | POST | `/pets` | Yes | Create a pet |
 | Pets | GET | `/pets` | Yes | List the user's pets |
 | Pets | GET | `/pets/{pet_id}` | Yes | Get one pet |
@@ -100,21 +99,17 @@ YYYY-MM-DDTHH:MM:SSZ
 | Pets | DELETE | `/pets/{pet_id}` | Yes | Delete one pet |
 | Care reminders | POST | `/reminders` | Yes | Create a care reminder |
 | Care reminders | GET | `/reminders` | Yes | List active care reminders |
-| Care reminders | GET | `/reminders/{reminder_id}` | Yes | Get one care reminder |
 | Care reminders | PUT | `/reminders/{reminder_id}` | Yes | Update one care reminder |
 | Care reminders | DELETE | `/reminders/{reminder_id}` | Yes | Delete one care reminder |
 | Care reminders | POST | `/reminders/{reminder_id}/complete` | Yes | Complete a reminder |
 | Care reminders | GET | `/reminders/history` | Yes | List completed reminders |
 | Memories | POST | `/memories` | Yes | Create a memory |
 | Memories | GET | `/memories` | Yes | List memories |
-| Memories | GET | `/memories/{memory_id}` | Yes | Get one memory |
 | Memories | PUT | `/memories/{memory_id}` | Yes | Update one memory |
 | Memories | DELETE | `/memories/{memory_id}` | Yes | Delete one memory |
 | Settings | GET | `/settings` | Yes | Get notification settings |
 | Settings | PUT | `/settings` | Yes | Update notification settings |
 | Dashboard | GET | `/dashboard` | Yes | Get dashboard summary data |
-| Data export | GET | `/export` | Yes | Export the user's PawRise data |
-| Care assistant | POST | `/assistant/guidance` | Yes | Request general pet-care guidance |
 
 ---
 
@@ -282,32 +277,6 @@ No request body is required.
     "email": "shuyao@example.com",
     "created_at": "2026-07-24T20:00:00Z"
   }
-}
-```
-
-### 6.4 Log Out
-
-Revokes the JWT used for the request.
-
-```http
-POST /api/auth/logout
-```
-
-#### Sample JSON Input
-
-No request body is required.
-
-```json
-{}
-```
-
-#### Sample JSON Output — `200 OK`
-
-```json
-{
-  "success": true,
-  "message": "Logout successful.",
-  "data": {}
 }
 ```
 
@@ -708,52 +677,7 @@ GET /api/reminders?pet_id=1&status=overdue&sort=due_date&order=asc
 }
 ```
 
-### 8.3 Get Care Reminder
-
-```http
-GET /api/reminders/{reminder_id}
-```
-
-#### Sample JSON Input
-
-```json
-{
-  "reminder_id": 1
-}
-```
-
-#### Sample JSON Output — `200 OK`
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": 1,
-    "pet_id": 1,
-    "pet_name": "Dami",
-    "care_type": "medication",
-    "due_date": "2026-08-24",
-    "repeat_rule": "every_2_months",
-    "notes": "Flea prevention refill.",
-    "status": "upcoming",
-    "completed_at": null
-  }
-}
-```
-
-#### Sample Error — `404 Not Found`
-
-```json
-{
-  "success": false,
-  "error": {
-    "code": "REMINDER_NOT_FOUND",
-    "message": "Care reminder not found."
-  }
-}
-```
-
-### 8.4 Update Care Reminder
+### 8.3 Update Care Reminder
 
 ```http
 PUT /api/reminders/{reminder_id}
@@ -791,7 +715,7 @@ PUT /api/reminders/{reminder_id}
 }
 ```
 
-### 8.5 Delete Care Reminder
+### 8.4 Delete Care Reminder
 
 Permanently deletes an active or completed reminder.
 
@@ -819,7 +743,7 @@ DELETE /api/reminders/{reminder_id}
 }
 ```
 
-### 8.6 Complete Care Reminder
+### 8.5 Complete Care Reminder
 
 Marks a reminder as completed. If the reminder repeats, the response also contains the automatically generated next reminder.
 
@@ -882,7 +806,7 @@ For a non-repeating reminder:
 }
 ```
 
-### 8.7 List Care History
+### 8.6 List Care History
 
 Returns completed reminders ordered by completion time, newest first.
 
@@ -1022,54 +946,7 @@ Optional query parameters:
 }
 ```
 
-### 9.3 Get Memory
-
-```http
-GET /api/memories/{memory_id}
-```
-
-#### Sample JSON Input
-
-```json
-{
-  "memory_id": 1
-}
-```
-
-#### Sample JSON Output — `200 OK`
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": 1,
-    "pet_id": 1,
-    "pet_name": "Dami",
-    "title": "Window sunshine nap",
-    "memory_date": "2026-07-08",
-    "category": "daily_moment",
-    "scene": "Quiet afternoon at home",
-    "description": "Dami found the warmest patch of light and stayed there until dinner.",
-    "image_url": "/uploads/memories/dami-window-nap.png",
-    "created_at": "2026-07-24T22:00:00Z",
-    "updated_at": "2026-07-24T22:00:00Z"
-  }
-}
-```
-
-#### Sample Error — `404 Not Found`
-
-```json
-{
-  "success": false,
-  "error": {
-    "code": "MEMORY_NOT_FOUND",
-    "message": "Memory not found."
-  }
-}
-```
-
-### 9.4 Update Memory
+### 9.3 Update Memory
 
 ```http
 PUT /api/memories/{memory_id}
@@ -1110,7 +987,7 @@ PUT /api/memories/{memory_id}
 }
 ```
 
-### 9.5 Delete Memory
+### 9.4 Delete Memory
 
 ```http
 DELETE /api/memories/{memory_id}
@@ -1294,122 +1171,7 @@ pet_id
 
 ---
 
-## 12. Data Export API
-
-### 12.1 Export User Data
-
-Exports the authenticated user's account profile, pets, reminders, care history, memories, and settings as JSON.
-
-```http
-GET /api/export
-```
-
-#### Sample JSON Input
-
-No request body is required.
-
-```json
-{}
-```
-
-#### Sample JSON Output — `200 OK`
-
-```json
-{
-  "success": true,
-  "data": {
-    "exported_at": "2026-07-24T23:00:00Z",
-    "user": {
-      "id": 1,
-      "full_name": "Shuyao Li",
-      "email": "shuyao@example.com"
-    },
-    "pets": [
-      {
-        "id": 1,
-        "name": "Dami",
-        "species": "Cat",
-        "breed": "Siamese"
-      }
-    ],
-    "active_reminders": [],
-    "care_history": [],
-    "memories": [],
-    "settings": {
-      "email_reminders": true,
-      "default_lead_days": 7,
-      "show_overdue_alerts": true
-    }
-  }
-}
-```
-
----
-
-## 13. Pet Care Assistant API
-
-### 13.1 Request General Care Guidance
-
-Provides general pet-care information and vet-visit preparation guidance. It must not diagnose disease, prescribe medication, replace a veterinarian, or represent itself as emergency care.
-
-The API may read the selected pet's profile to provide relevant context, but it must not expose another user's pet data.
-
-```http
-POST /api/assistant/guidance
-```
-
-#### Sample JSON Input
-
-```json
-{
-  "pet_id": 1,
-  "question": "What information should I prepare before Dami's annual checkup?"
-}
-```
-
-#### Sample JSON Output — `200 OK`
-
-```json
-{
-  "success": true,
-  "data": {
-    "pet_id": 1,
-    "pet_name": "Dami",
-    "answer": "Before the visit, prepare Dami's vaccination history, current medications, recent appetite or behavior changes, weight changes, and a list of questions for the veterinarian.",
-    "disclaimer": "This information is for general educational support only and does not replace advice from a licensed veterinarian."
-  }
-}
-```
-
-#### Sample Safety Response — `200 OK`
-
-```json
-{
-  "success": true,
-  "data": {
-    "pet_id": 1,
-    "pet_name": "Dami",
-    "answer": "I cannot diagnose an emergency or recommend treatment. Contact a veterinarian or an emergency veterinary clinic immediately if Dami has trouble breathing, collapses, has uncontrolled bleeding, or shows another severe symptom.",
-    "disclaimer": "This information is for general educational support only and does not replace advice from a licensed veterinarian."
-  }
-}
-```
-
-#### Sample Error — `400 Bad Request`
-
-```json
-{
-  "success": false,
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "A question is required."
-  }
-}
-```
-
----
-
-## 14. Authorization and Data Protection Requirements
+## 12. Authorization and Data Protection Requirements
 
 1. Passwords must be hashed using a secure password-hashing function.
 2. API responses must never return password hashes.
@@ -1420,7 +1182,7 @@ POST /api/assistant/guidance
 7. API errors must not expose stack traces, database credentials, or internal file paths.
 8. Secrets such as JWT signing keys must be stored in environment variables.
 
-## 15. Database Update Expectations for the Demonstration
+## 13. Database Update Expectations for the Demonstration
 
 The Milestone 2 video must show database evidence after each modifying API operation:
 
@@ -1439,7 +1201,7 @@ The Milestone 2 video must show database evidence after each modifying API opera
 | Delete memory | Memory row is removed |
 | Update settings | Existing `user_settings` row contains updated values |
 
-## 16. Current Scope Decisions
+## 14. Current Scope Decisions
 
 - The Dashboard uses existing pet, reminder, and memory data; it does not have its own database table.
 - Reminder status is calculated by the backend and is not directly edited by users.
@@ -1449,3 +1211,13 @@ The Milestone 2 video must show database evidence after each modifying API opera
 - The first backend version uses an `image_url` field. Image file upload handling may be added as a separate endpoint after the core database-backed APIs are complete.
 - Email delivery, password-reset email delivery, payment processing, veterinary diagnosis, prescriptions, emergency services, and veterinary-clinic integration are outside the Milestone 2 core backend scope.
 
+## 15. Future Enhancements
+
+The following endpoints are intentionally excluded from the Milestone 2 core backend. They may be designed and implemented after all required database-backed APIs are complete and tested:
+
+| Method | Future endpoint | Purpose |
+|---|---|---|
+| GET | `/api/export` | Export the authenticated user's PawRise data |
+| POST | `/api/assistant/guidance` | Provide general pet-care guidance with an appropriate safety disclaimer |
+
+Client-side logout is used in the Milestone 2 core version by deleting the stored JWT. A server-side token-revocation endpoint may be added later if persistent token revocation becomes necessary.

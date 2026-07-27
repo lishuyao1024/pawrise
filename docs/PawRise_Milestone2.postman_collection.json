@@ -1,0 +1,615 @@
+{
+  "info": {
+    "_postman_id": "6c8a7c57-5c16-4ff1-9e7b-64a46e7d687d",
+    "name": "PawRise Milestone 2 Backend Demo",
+    "description": "Ordered requests for demonstrating PawRise authentication, CRUD operations, database updates, settings, and dashboard aggregation.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:5000"
+    },
+    {
+      "key": "demoEmail",
+      "value": ""
+    },
+    {
+      "key": "demoPassword",
+      "value": "PawRise123!"
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "userId",
+      "value": ""
+    },
+    {
+      "key": "petId",
+      "value": ""
+    },
+    {
+      "key": "reminderId",
+      "value": ""
+    },
+    {
+      "key": "nextReminderId",
+      "value": ""
+    },
+    {
+      "key": "memoryId",
+      "value": ""
+    },
+    {
+      "key": "reminderDueDate",
+      "value": ""
+    },
+    {
+      "key": "updatedReminderDueDate",
+      "value": ""
+    },
+    {
+      "key": "memoryDate",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "01 - Setup and Authentication",
+      "item": [
+        {
+          "name": "01. Health Check",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "url": "{{baseUrl}}/api/health",
+            "description": "Confirms that Flask and SQLite are available."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Health check returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Database is connected', function () {",
+                  "  pm.expect(pm.response.json().data.database).to.eql('connected');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02. Register Demo User",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const uniqueEmail = 'pawrise.demo+' + Date.now() + '@example.com';",
+                  "pm.collectionVariables.set('demoEmail', uniqueEmail);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Registration returns 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('accessToken', body.data.access_token);",
+                  "pm.collectionVariables.set('userId', body.data.user.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"PawRise Demo User\",\n  \"email\": \"{{demoEmail}}\",\n  \"password\": \"{{demoPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/register",
+            "description": "Creates one user and one default user_settings row."
+          }
+        },
+        {
+          "name": "03. Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.collectionVariables.set('accessToken', pm.response.json().data.access_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{demoEmail}}\",\n  \"password\": \"{{demoPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/login"
+          }
+        },
+        {
+          "name": "04. Get Current User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Current user returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/auth/me"
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 - Pet CRUD",
+      "item": [
+        {
+          "name": "05. Create Pet",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Pet creation returns 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.collectionVariables.set('petId', pm.response.json().data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Dami\",\n  \"species\": \"Cat\",\n  \"breed\": \"Siamese\",\n  \"birthday\": \"2023-04-18\",\n  \"adoption_date\": \"2023-06-12\",\n  \"weight_lb\": 9.2,\n  \"image_url\": \"/uploads/pets/dami-profile.png\",\n  \"notes\": \"Gentle, vocal, and happiest near the window.\"\n}"
+            },
+            "url": "{{baseUrl}}/api/pets",
+            "description": "After this request, show the new row in the pets table."
+          }
+        },
+        {
+          "name": "06. List Pets",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/pets"
+          }
+        },
+        {
+          "name": "07. Get Pet",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/pets/{{petId}}"
+          }
+        },
+        {
+          "name": "08. Update Pet",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Pet update returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Weight is updated', function () {",
+                  "  pm.expect(pm.response.json().data.weight_lb).to.eql(9.5);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Dami\",\n  \"species\": \"Cat\",\n  \"breed\": \"Siamese\",\n  \"birthday\": \"2023-04-18\",\n  \"adoption_date\": \"2023-06-12\",\n  \"weight_lb\": 9.5,\n  \"image_url\": \"/uploads/pets/dami-profile.png\",\n  \"notes\": \"Updated after the July checkup.\"\n}"
+            },
+            "url": "{{baseUrl}}/api/pets/{{petId}}",
+            "description": "After this request, show weight_lb and notes changed in the pets table."
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 - Reminder CRUD and Completion",
+      "item": [
+        {
+          "name": "09. Create Repeating Reminder",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const due = new Date();",
+                  "due.setDate(due.getDate() + 30);",
+                  "pm.collectionVariables.set('reminderDueDate', due.toISOString().slice(0, 10));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Reminder creation returns 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.collectionVariables.set('reminderId', pm.response.json().data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pet_id\": {{petId}},\n  \"care_type\": \"medication\",\n  \"due_date\": \"{{reminderDueDate}}\",\n  \"repeat_rule\": \"every_2_months\",\n  \"notes\": \"Flea prevention refill.\"\n}"
+            },
+            "url": "{{baseUrl}}/api/reminders",
+            "description": "After this request, show the active care_reminders row."
+          }
+        },
+        {
+          "name": "10. List Active Reminders",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/reminders?pet_id={{petId}}&sort=due_date&order=asc"
+          }
+        },
+        {
+          "name": "11. Update Reminder",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const due = new Date();",
+                  "due.setDate(due.getDate() + 45);",
+                  "pm.collectionVariables.set('updatedReminderDueDate', due.toISOString().slice(0, 10));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Reminder update returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pet_id\": {{petId}},\n  \"care_type\": \"checkup\",\n  \"due_date\": \"{{updatedReminderDueDate}}\",\n  \"repeat_rule\": \"every_2_months\",\n  \"notes\": \"Updated clinic appointment.\"\n}"
+            },
+            "url": "{{baseUrl}}/api/reminders/{{reminderId}}",
+            "description": "After this request, show the changed reminder row."
+          }
+        },
+        {
+          "name": "12. Complete Repeating Reminder",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Reminder completion returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const next = pm.response.json().data.next_reminder;",
+                  "pm.expect(next).not.to.eql(null);",
+                  "pm.collectionVariables.set('nextReminderId', next.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": "{{baseUrl}}/api/reminders/{{reminderId}}/complete",
+            "description": "Show two database rows afterward: the completed source and the new active occurrence."
+          }
+        },
+        {
+          "name": "13. View Care History",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/reminders/history?pet_id={{petId}}"
+          }
+        },
+        {
+          "name": "14. Delete Generated Reminder",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Reminder deletion returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/api/reminders/{{nextReminderId}}",
+            "description": "After this request, show that the generated active row was removed."
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 - Memory CRUD",
+      "item": [
+        {
+          "name": "15. Create Memory",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const memoryDate = new Date();",
+                  "memoryDate.setDate(memoryDate.getDate() - 1);",
+                  "pm.collectionVariables.set('memoryDate', memoryDate.toISOString().slice(0, 10));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Memory creation returns 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.collectionVariables.set('memoryId', pm.response.json().data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pet_id\": {{petId}},\n  \"title\": \"Window sunshine nap\",\n  \"memory_date\": \"{{memoryDate}}\",\n  \"category\": \"daily_moment\",\n  \"scene\": \"Quiet afternoon at home\",\n  \"description\": \"Dami found the warmest patch of light.\",\n  \"image_url\": \"/uploads/memories/dami-window-nap.png\"\n}"
+            },
+            "url": "{{baseUrl}}/api/memories",
+            "description": "After this request, show the new memories row."
+          }
+        },
+        {
+          "name": "16. List Memories",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/memories?pet_id={{petId}}&category=daily_moment"
+          }
+        },
+        {
+          "name": "17. Update Memory",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Memory update returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pet_id\": {{petId}},\n  \"title\": \"A long window sunshine nap\",\n  \"memory_date\": \"{{memoryDate}}\",\n  \"category\": \"daily_moment\",\n  \"scene\": \"Quiet afternoon at home\",\n  \"description\": \"Dami stayed in the warm window light for most of the afternoon.\",\n  \"image_url\": \"/uploads/memories/dami-window-nap.png\"\n}"
+            },
+            "url": "{{baseUrl}}/api/memories/{{memoryId}}",
+            "description": "After this request, show title and description changed in the database."
+          }
+        },
+        {
+          "name": "18. Delete Memory",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Memory deletion returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/api/memories/{{memoryId}}",
+            "description": "After this request, show that the memory row was removed."
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 - Settings and Dashboard",
+      "item": [
+        {
+          "name": "19. Get Settings",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/settings"
+          }
+        },
+        {
+          "name": "20. Update Settings",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Settings update returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Lead days changed to 3', function () {",
+                  "  pm.expect(pm.response.json().data.default_lead_days).to.eql(3);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email_reminders\": false,\n  \"default_lead_days\": 3,\n  \"show_overdue_alerts\": false\n}"
+            },
+            "url": "{{baseUrl}}/api/settings",
+            "description": "After this request, show the same settings row with updated values."
+          }
+        },
+        {
+          "name": "21. Get Dashboard",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/dashboard",
+            "description": "Demonstrates read-only aggregation from pets, reminders, memories, and settings."
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 - Final Cleanup",
+      "item": [
+        {
+          "name": "22. Delete Pet and Related Data",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Pet deletion returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/api/pets/{{petId}}",
+            "description": "Show that the pet and its remaining completed reminder are removed by cascade deletion."
+          }
+        }
+      ]
+    }
+  ]
+}
