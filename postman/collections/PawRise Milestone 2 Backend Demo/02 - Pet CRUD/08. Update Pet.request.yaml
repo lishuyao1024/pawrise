@@ -1,0 +1,30 @@
+$kind: http-request
+description: After this request, show weight_lb and notes changed in the pets table.
+url: "{{baseUrl}}/api/pets/{{petId}}"
+method: PUT
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "name": "Dami",
+      "species": "Cat",
+      "breed": "Siamese",
+      "birthday": "2023-04-18",
+      "adoption_date": "2023-06-12",
+      "weight_lb": 9.5,
+      "image_url": "/uploads/pets/dami-profile.png",
+      "notes": "Updated after the July checkup."
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Pet update returns 200', function () {
+        pm.response.to.have.status(200);
+      });
+      pm.test('Weight is updated', function () {
+        pm.expect(pm.response.json().data.weight_lb).to.eql(9.5);
+      });
+    language: text/javascript
+order: 4000

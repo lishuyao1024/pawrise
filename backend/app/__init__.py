@@ -11,6 +11,7 @@ from .extensions import cors, db, jwt, migrate
 def create_app(config_object=None):
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_object(Config)
+    app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
 
     if config_object:
         if isinstance(config_object, dict):
@@ -36,6 +37,7 @@ def create_app(config_object=None):
     from .routes.pets import pets_bp
     from .routes.reminders import reminders_bp
     from .routes.settings import settings_bp
+    from .routes.uploads import uploads_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -44,6 +46,7 @@ def create_app(config_object=None):
     app.register_blueprint(pets_bp)
     app.register_blueprint(reminders_bp)
     app.register_blueprint(settings_bp)
+    app.register_blueprint(uploads_bp)
     register_jwt_error_handlers()
     register_cli_commands(app)
 

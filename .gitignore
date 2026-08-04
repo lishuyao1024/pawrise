@@ -22,9 +22,11 @@ yarn-error.log*
 
 # Python backend artifacts
 __pycache__/
+.pytest_cache/
 *.py[cod]
 .venv/
 venv/
+backend/instance/
 
 # Local databases
 *.sqlite
@@ -42,3 +44,5 @@ tmp/
 temp/
 *.tmp
 
+# Local Postman workspace metadata
+.postman/

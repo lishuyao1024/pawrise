@@ -1,0 +1,26 @@
+$kind: http-request
+description: After this request, show title and description changed in the database.
+url: "{{baseUrl}}/api/memories/{{memoryId}}"
+method: PUT
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "pet_id": {{petId}},
+      "title": "A long window sunshine nap",
+      "memory_date": "{{memoryDate}}",
+      "category": "daily_moment",
+      "scene": "Quiet afternoon at home",
+      "description": "Dami stayed in the warm window light for most of the afternoon.",
+      "image_url": "/uploads/memories/dami-window-nap.png"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Memory update returns 200', function () {
+        pm.response.to.have.status(200);
+      });
+    language: text/javascript
+order: 3000

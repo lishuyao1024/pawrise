@@ -1,0 +1,5 @@
+$kind: http-request
+description: Demonstrates read-only aggregation from pets, reminders, memories, and settings.
+url: "{{baseUrl}}/api/dashboard"
+method: GET
+order: 3000

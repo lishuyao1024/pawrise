@@ -1,0 +1,7 @@
+$kind: http-request
+url: "{{baseUrl}}/api/memories?pet_id={{petId}}&category=daily_moment"
+method: GET
+queryParams:
+  pet_id: "{{petId}}"
+  category: daily_moment
+order: 2000

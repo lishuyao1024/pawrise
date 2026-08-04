@@ -1,0 +1,33 @@
+$kind: http-request
+description: After this request, show the new memories row.
+url: "{{baseUrl}}/api/memories"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "pet_id": {{petId}},
+      "title": "Window sunshine nap",
+      "memory_date": "{{memoryDate}}",
+      "category": "daily_moment",
+      "scene": "Quiet afternoon at home",
+      "description": "Dami found the warmest patch of light.",
+      "image_url": "/uploads/memories/dami-window-nap.png"
+    }
+scripts:
+  - type: beforeRequest
+    code: |-
+      const memoryDate = new Date();
+      memoryDate.setDate(memoryDate.getDate() - 1);
+      pm.collectionVariables.set('memoryDate', memoryDate.toISOString().slice(0, 10));
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test('Memory creation returns 201', function () {
+        pm.response.to.have.status(201);
+      });
+      pm.collectionVariables.set('memoryId', pm.response.json().data.id);
+    language: text/javascript
+order: 1000

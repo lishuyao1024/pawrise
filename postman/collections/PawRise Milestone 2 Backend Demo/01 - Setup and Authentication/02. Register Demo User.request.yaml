@@ -1,0 +1,32 @@
+$kind: http-request
+description: Creates one user and one default user_settings row.
+url: "{{baseUrl}}/api/auth/register"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "full_name": "PawRise Demo User",
+      "email": "{{demoEmail}}",
+      "password": "{{demoPassword}}"
+    }
+auth:
+  type: noauth
+scripts:
+  - type: beforeRequest
+    code: |-
+      const uniqueEmail = 'pawrise.demo+' + Date.now() + '@example.com';
+      pm.collectionVariables.set('demoEmail', uniqueEmail);
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test('Registration returns 201', function () {
+        pm.response.to.have.status(201);
+      });
+      const body = pm.response.json();
+      pm.collectionVariables.set('accessToken', body.data.access_token);
+      pm.collectionVariables.set('userId', body.data.user.id);
+    language: text/javascript
+order: 2000
