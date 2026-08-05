@@ -1,0 +1,22 @@
+$kind: collection
+name: PawRise Milestone 2 Backend Demo
+description: Ordered requests for demonstrating PawRise authentication, CRUD operations, database updates, settings, and dashboard aggregation.
+variables:
+  baseUrl: http://127.0.0.1:5000
+  demoEmail: ""
+  demoPassword: PawRise123!
+  accessToken: ""
+  userId: ""
+  petId: ""
+  reminderId: ""
+  nextReminderId: ""
+  memoryId: ""
+  reminderDueDate: ""
+  updatedReminderDueDate: ""
+  memoryDate: ""
+auth:
+  - id: 50270e29-8045-4984-88ff-413e1b8bf89e
+    type: bearer
+    name: bearer auth
+    credentials:
+      token: "{{accessToken}}"

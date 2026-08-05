@@ -1,10 +1,19 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Bell, CalendarDays, Download, Eye, EyeOff, LogOut, PawPrint, Repeat2, ShieldCheck, Syringe, UserRound } from "lucide-react";
 import authBrandPanel from "./assets/auth-brand-panel.png";
 import damiMemory from "./assets/dami-memory.png";
 import damiProfile from "./assets/dami-profile.png";
 import roroMemory from "./assets/roro-memory.png";
 import roroProfile from "./assets/roro-profile.png";
+import { api, clearAccessToken, hasAccessToken, setAccessToken } from "./api.js";
+
+const isoDate = (date) => date.toISOString().slice(0, 10);
+const todayIso = () => isoDate(new Date());
+const tomorrowIso = () => {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+  return isoDate(date);
+};
 
 const initialPets = [
   {
@@ -98,6 +107,7 @@ const initialMemories = [
 
 const emptyPetDraft = {
   name: "",
+  species: "Cat",
   breed: "",
   age: "",
   birthday: "",
@@ -107,17 +117,17 @@ const emptyPetDraft = {
 };
 
 const emptyHealthDraft = {
-  petId: "dami",
+  petId: "",
   type: "Vaccine",
-  due: "2026-07-18",
+  due: tomorrowIso(),
   repeat: "Every year",
   note: "",
 };
 
 const emptyMemoryDraft = {
-  petId: "dami",
+  petId: "",
   title: "",
-  date: "Jul 11, 2026",
+  date: todayIso(),
   scene: "",
   description: "",
   image: damiMemory,
@@ -128,7 +138,7 @@ function petName(pets, id) {
   return pets.find((pet) => pet.id === id)?.name ?? "All pets";
 }
 
-const TODAY = new Date("2026-07-11T12:00:00");
+const TODAY = new Date(`${todayIso()}T12:00:00`);
 
 function dateValue(value) {
   return new Date(`${value}T12:00:00`);
@@ -152,6 +162,81 @@ function addRepeatDate(due, repeat) {
   if (!months) return null;
   next.setMonth(next.getMonth() + months);
   return next.toISOString().slice(0, 10);
+}
+
+const repeatToApi = {
+  "Does not repeat": "none",
+  "Every month": "monthly",
+  "Every 2 months": "every_2_months",
+  "Every 3 months": "every_3_months",
+  "Every 6 months": "every_6_months",
+  "Every year": "yearly",
+};
+
+const repeatFromApi = Object.fromEntries(Object.entries(repeatToApi).map(([label, value]) => [value, label]));
+
+function normalizePet(pet) {
+  return {
+    id: String(pet.id),
+    name: pet.name,
+    species: pet.species,
+    breed: pet.breed || pet.species,
+    age: pet.age_years == null ? "Age not set" : `${pet.age_years} years`,
+    birthday: pet.birthday || "",
+    adoption: pet.adoption_date || "",
+    weight: pet.weight_lb ?? "",
+    image: pet.image_url || (pet.id % 2 === 0 ? roroProfile : damiProfile),
+    note: pet.notes || "No notes yet.",
+  };
+}
+
+function normalizeReminder(reminder) {
+  return {
+    id: String(reminder.id),
+    petId: String(reminder.pet_id),
+    type: reminder.care_type.charAt(0).toUpperCase() + reminder.care_type.slice(1),
+    due: reminder.due_date,
+    repeat: repeatFromApi[reminder.repeat_rule] || "Does not repeat",
+    note: reminder.notes || "",
+    status: reminder.status,
+    completedId: String(reminder.id),
+    completedOn: reminder.completed_at ? new Date(reminder.completed_at).toLocaleDateString("en-US") : "",
+  };
+}
+
+function normalizeMemory(memory) {
+  return {
+    id: String(memory.id),
+    petId: String(memory.pet_id),
+    title: memory.title,
+    date: memory.memory_date,
+    scene: memory.scene || memory.category?.replaceAll("_", " ") || "Everyday moment",
+    description: memory.description || "A small memory worth keeping.",
+    image: memory.image_url || (memory.pet_id % 2 === 0 ? roroMemory : damiMemory),
+  };
+}
+
+function petPayload(draft) {
+  return {
+    name: draft.name.trim(),
+    species: draft.species.trim(),
+    breed: draft.breed.trim() || null,
+    birthday: draft.birthday || null,
+    adoption_date: draft.adoption || null,
+    weight_lb: draft.weight === "" ? null : Number(draft.weight),
+    image_url: draft.image?.startsWith("http") ? draft.image : null,
+    notes: draft.note?.trim() || null,
+  };
+}
+
+function reminderPayload(draft) {
+  return {
+    pet_id: Number(draft.petId),
+    care_type: draft.type.toLowerCase(),
+    due_date: draft.due,
+    repeat_rule: repeatToApi[draft.repeat] || "none",
+    notes: draft.note?.trim() || null,
+  };
 }
 
 function timeGreeting() {
@@ -180,13 +265,14 @@ function AuthView({ onAuthenticate }) {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   function selectMode(nextMode) {
     setMode(nextMode);
     setMessage("");
   }
 
-  function submitAuth(event) {
+  async function submitAuth(event) {
     event.preventDefault();
     if (mode === "signup" && !fullName.trim()) {
       setMessage("Enter your full name to create an account.");
@@ -200,10 +286,21 @@ function AuthView({ onAuthenticate }) {
       setMessage("Use at least 8 characters for your password.");
       return;
     }
-    onAuthenticate({
-      email: email.trim(),
-      name: mode === "signup" ? fullName.trim() : "Sylvia Young",
-    });
+    setSubmitting(true);
+    setMessage("");
+    try {
+      await onAuthenticate({
+        mode,
+        fullName: fullName.trim(),
+        email: email.trim(),
+        password,
+      });
+    } catch (error) {
+      const detail = error.details ? Object.values(error.details)[0] : null;
+      setMessage(detail || error.message);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -255,7 +352,9 @@ function AuthView({ onAuthenticate }) {
 
             {mode === "login" && <button className="auth-forgot" onClick={() => setMessage("Password reset is ready for account integration.")} type="button">Forgot password?</button>}
             {message && <p className="auth-message" role="alert">{message}</p>}
-            <button className="auth-primary" type="submit">{mode === "login" ? "Continue" : "Create account"}</button>
+            <button className="auth-primary" disabled={submitting} type="submit">
+              {submitting ? "Connecting..." : mode === "login" ? "Continue" : "Create account"}
+            </button>
           </form>
 
           <div className="auth-switch">
@@ -428,14 +527,12 @@ function HomeView({
             </label>
             <label>
               Due date
-              <select
+              <input
+                min={tomorrowIso()}
+                type="date"
                 value={draft.due}
                 onChange={(event) => setDraft((current) => ({ ...current, due: event.target.value }))}
-              >
-                <option value="2026-07-15">Jul 15, 2026</option>
-                <option value="2026-07-24">Jul 24, 2026</option>
-                <option value="2026-08-01">Aug 01, 2026</option>
-              </select>
+              />
             </label>
             <button className="primary-button" type="submit">
               Save
@@ -481,7 +578,7 @@ function HomeView({
                       </div>
                       <div>
                         <dt>Weight</dt>
-                        <dd>{pet.weight}</dd>
+                        <dd>{pet.weight === "" ? "Not set" : `${pet.weight} lb`}</dd>
                       </div>
                     </dl>
                     <button className="secondary-button" onClick={() => openPetDetail(pet.id)} type="button">
@@ -512,8 +609,32 @@ function MyPetsView({
   savePet,
   deletePet,
   setPetDraft,
+  setToast,
   openPage,
 }) {
+  const formPanelRef = useRef(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
+
+  useEffect(() => {
+    if (!formMode || !formPanelRef.current) return;
+    formPanelRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [formMode]);
+
+  async function uploadPetPhoto(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setPhotoUploading(true);
+    try {
+      const uploaded = await api.uploadImage(file);
+      setPetDraft((current) => ({ ...current, image: uploaded.url, photoName: file.name }));
+      setToast(`${file.name} uploaded. Save the profile to keep this photo.`);
+    } catch (error) {
+      setToast(error.message);
+    } finally {
+      setPhotoUploading(false);
+    }
+  }
+
   return (
     <>
       <header className="topbar">
@@ -557,15 +678,15 @@ function MyPetsView({
                   <dl className="detail-list">
                     <div>
                       <dt>Birthday</dt>
-                      <dd>{pet.birthday}</dd>
+                      <dd>{pet.birthday ? formatCareDate(pet.birthday) : "Not set"}</dd>
                     </div>
                     <div>
                       <dt>Adoption day</dt>
-                      <dd>{pet.adoption}</dd>
+                      <dd>{pet.adoption ? formatCareDate(pet.adoption) : "Not set"}</dd>
                     </div>
                     <div>
                       <dt>Weight</dt>
-                      <dd>{pet.weight}</dd>
+                      <dd>{pet.weight === "" ? "Not set" : `${pet.weight} lb`}</dd>
                     </div>
                     <div>
                       <dt>Notes</dt>
@@ -607,7 +728,7 @@ function MyPetsView({
         )}
 
         {formMode && (
-          <section className="pet-form-panel" aria-label={formMode === "add" ? "Add pet form" : "Edit pet form"}>
+          <section className="pet-form-panel" ref={formPanelRef} aria-label={formMode === "add" ? "Add pet form" : "Edit pet form"}>
             <div className="panel-heading">
               <div>
                 <span className="eyebrow">{formMode === "add" ? "New profile" : "Edit profile"}</span>
@@ -636,27 +757,27 @@ function MyPetsView({
                 />
               </label>
               <label>
-                Age
+                Species
                 <input
-                  value={petDraft.age}
-                  onChange={(event) => setPetDraft((current) => ({ ...current, age: event.target.value }))}
-                  placeholder="2 years"
+                  value={petDraft.species}
+                  onChange={(event) => setPetDraft((current) => ({ ...current, species: event.target.value }))}
+                  placeholder="Cat, dog, rabbit..."
                 />
               </label>
               <label>
                 Birthday
                 <input
+                  type="date"
                   value={petDraft.birthday}
                   onChange={(event) => setPetDraft((current) => ({ ...current, birthday: event.target.value }))}
-                  placeholder="Sep 03, 2024"
                 />
               </label>
               <label>
                 Adoption day
                 <input
+                  type="date"
                   value={petDraft.adoption}
                   onChange={(event) => setPetDraft((current) => ({ ...current, adoption: event.target.value }))}
-                  placeholder="Oct 20, 2024"
                 />
               </label>
               <label>
@@ -676,20 +797,17 @@ function MyPetsView({
                 />
               </label>
               <label className="wide-field">
-                Photo
+                Photo from this device (optional)
                 <input
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  disabled={photoUploading}
                   type="file"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file) {
-                      setPetDraft((current) => ({ ...current, image: URL.createObjectURL(file) }));
-                    }
-                  }}
+                  onChange={uploadPetPhoto}
                 />
+                <small>{photoUploading ? "Uploading photo..." : petDraft.photoName || (petDraft.image?.startsWith("http") ? "A saved photo is attached." : "JPG, PNG, GIF, or WebP; maximum 5 MB.")}</small>
               </label>
-              <button className="primary-button wide-field" type="submit">
-                Save profile
+              <button className="primary-button wide-field" disabled={photoUploading} type="submit">
+                {photoUploading ? "Uploading..." : "Save profile"}
               </button>
             </form>
           </section>
@@ -767,7 +885,7 @@ function HealthCareView({
             <label className="care-field feature-field">
               <span className="care-field-icon" aria-hidden="true"><CalendarDays /></span>
               <span>Due date</span>
-              <input min="2026-07-12" type="date" value={healthDraft.due} onChange={(event) => setHealthDraft((current) => ({ ...current, due: event.target.value }))} />
+              <input min={tomorrowIso()} type="date" value={healthDraft.due} onChange={(event) => setHealthDraft((current) => ({ ...current, due: event.target.value }))} />
             </label>
             <label className="care-field feature-field">
               <span className="care-field-icon" aria-hidden="true"><Repeat2 /></span>
@@ -863,7 +981,25 @@ function MemoryTimelineView({
   cancelMemoryForm,
   saveMemory,
   setMemoryDraft,
+  setToast,
 }) {
+  const [photoUploading, setPhotoUploading] = useState(false);
+
+  async function uploadMemoryPhoto(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setPhotoUploading(true);
+    try {
+      const uploaded = await api.uploadImage(file);
+      setMemoryDraft((current) => ({ ...current, image: uploaded.url, photoName: file.name }));
+      setToast(`${file.name} uploaded. Save the memory to keep this photo.`);
+    } catch (error) {
+      setToast(error.message);
+    } finally {
+      setPhotoUploading(false);
+    }
+  }
+
   const sortedMemories = memories
     .slice()
     .sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -913,9 +1049,10 @@ function MemoryTimelineView({
               <label>
                 Date
                 <input
+                  max={todayIso()}
+                  type="date"
                   value={memoryDraft.date}
                   onChange={(event) => setMemoryDraft((current) => ({ ...current, date: event.target.value }))}
-                  placeholder="Jul 11, 2026"
                 />
               </label>
               <label>
@@ -943,27 +1080,17 @@ function MemoryTimelineView({
                 />
               </label>
               <label className="wide-field">
-                Photo
-                <span className="file-picker">
-                  <span>{memoryDraft.photoName || "Choose photo"}</span>
-                  <input
-                    accept="image/*"
-                    type="file"
-                    onChange={(event) => {
-                      const file = event.target.files?.[0];
-                      if (file) {
-                        setMemoryDraft((current) => ({
-                          ...current,
-                          image: URL.createObjectURL(file),
-                          photoName: file.name,
-                        }));
-                      }
-                    }}
-                  />
-                </span>
+                Photo from this device (optional)
+                <input
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  disabled={photoUploading}
+                  type="file"
+                  onChange={uploadMemoryPhoto}
+                />
+                <small>{photoUploading ? "Uploading photo..." : memoryDraft.photoName || "JPG, PNG, GIF, or WebP; maximum 5 MB."}</small>
               </label>
-              <button className="primary-button wide-field" type="submit">
-                Save memory
+              <button className="primary-button wide-field" disabled={photoUploading} type="submit">
+                {photoUploading ? "Uploading..." : "Save memory"}
               </button>
             </form>
           </section>
@@ -973,8 +1100,8 @@ function MemoryTimelineView({
           {sortedMemories.map((memory) => (
             <article className="memory-card" key={memory.id}>
               <div className="memory-date">
-                <span>{memory.date.split(" ")[0]}</span>
-                <strong>{memory.date.split(" ")[1]?.replace(",", "")}</strong>
+                <span>{formatCareDate(memory.date).split(" ")[0]}</span>
+                <strong>{formatCareDate(memory.date).split(" ")[1]?.replace(",", "")}</strong>
               </div>
               <div className="memory-copy">
                 <span className="eyebrow">{petName(pets, memory.petId)}</span>
@@ -994,7 +1121,37 @@ function MemoryTimelineView({
 function SettingsView({ onLogout, setToast, user }) {
   const [emailReminders, setEmailReminders] = useState(true);
   const [overdueAlerts, setOverdueAlerts] = useState(true);
-  const [reminderTiming, setReminderTiming] = useState("3 days before");
+  const [reminderTiming, setReminderTiming] = useState(7);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    api.settings.get()
+      .then((settings) => {
+        if (!active) return;
+        setEmailReminders(settings.email_reminders);
+        setOverdueAlerts(settings.show_overdue_alerts);
+        setReminderTiming(settings.default_lead_days);
+      })
+      .catch((error) => setToast(error.message));
+    return () => { active = false; };
+  }, [setToast]);
+
+  async function saveSettings() {
+    setSaving(true);
+    try {
+      await api.settings.update({
+        email_reminders: emailReminders,
+        default_lead_days: Number(reminderTiming),
+        show_overdue_alerts: overdueAlerts,
+      });
+      setToast("Notification settings saved to PawRise.");
+    } catch (error) {
+      setToast(error.message);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <>
@@ -1031,8 +1188,8 @@ function SettingsView({ onLogout, setToast, user }) {
             </label>
             <label className="settings-control-row">
               <span><strong>Remind me</strong><small>Set the default notice before a care task is due.</small></span>
-              <select value={reminderTiming} onChange={(event) => setReminderTiming(event.target.value)}>
-                <option>1 day before</option><option>3 days before</option><option>1 week before</option><option>2 weeks before</option>
+              <select value={reminderTiming} onChange={(event) => setReminderTiming(Number(event.target.value))}>
+                <option value={1}>1 day before</option><option value={3}>3 days before</option><option value={7}>1 week before</option><option value={14}>2 weeks before</option>
               </select>
             </label>
             <label className="settings-toggle-row">
@@ -1040,6 +1197,9 @@ function SettingsView({ onLogout, setToast, user }) {
               <input checked={overdueAlerts} onChange={(event) => setOverdueAlerts(event.target.checked)} type="checkbox" />
             </label>
           </div>
+          <button className="primary-button" disabled={saving} type="button" onClick={saveSettings}>
+            {saving ? "Saving..." : "Save notification settings"}
+          </button>
         </section>
 
         <section className="settings-section">
@@ -1080,15 +1240,16 @@ function PlaceholderPage({ page, openPage }) {
 
 export function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState({ name: "Sylvia Young", email: "sylvia@example.com" });
+  const [isRestoring, setIsRestoring] = useState(hasAccessToken());
+  const [user, setUser] = useState({ name: "", email: "" });
   const [activePage, setActivePage] = useState("Home");
-  const [pets, setPets] = useState(initialPets);
+  const [pets, setPets] = useState([]);
   const [selectedPet, setSelectedPet] = useState("all");
-  const [selectedPetId, setSelectedPetId] = useState(initialPets[0]?.id ?? null);
-  const [reminders, setReminders] = useState(initialReminders);
+  const [selectedPetId, setSelectedPetId] = useState(null);
+  const [reminders, setReminders] = useState([]);
   const [careHistory, setCareHistory] = useState([]);
-  const [memories, setMemories] = useState(initialMemories);
-  const [draft, setDraft] = useState({ petId: "dami", title: "", due: "2026-07-24" });
+  const [memories, setMemories] = useState([]);
+  const [draft, setDraft] = useState({ petId: "", title: "", due: tomorrowIso() });
   const [formMode, setFormMode] = useState(null);
   const [petDraft, setPetDraft] = useState(emptyPetDraft);
   const [editingPetId, setEditingPetId] = useState(null);
@@ -1100,6 +1261,47 @@ export function App() {
   const [memoryFormOpen, setMemoryFormOpen] = useState(false);
   const [memoryDraft, setMemoryDraft] = useState(emptyMemoryDraft);
   const [toast, setToast] = useState("");
+
+  async function loadAllData() {
+    const [petData, reminderData, historyData, memoryData] = await Promise.all([
+      api.pets.list(),
+      api.reminders.list(),
+      api.reminders.history(),
+      api.memories.list(),
+    ]);
+    const nextPets = petData.map(normalizePet);
+    const defaultPetId = nextPets[0]?.id ?? "";
+    setPets(nextPets);
+    setReminders(reminderData.map(normalizeReminder));
+    setCareHistory(historyData.map(normalizeReminder));
+    setMemories(memoryData.map(normalizeMemory));
+    setSelectedPetId((current) => nextPets.some((pet) => pet.id === current) ? current : defaultPetId || null);
+    setSelectedPet((current) => current === "all" || nextPets.some((pet) => pet.id === current) ? current : "all");
+    setDraft((current) => ({ ...current, petId: nextPets.some((pet) => pet.id === current.petId) ? current.petId : defaultPetId }));
+    setHealthDraft((current) => ({ ...current, petId: nextPets.some((pet) => pet.id === current.petId) ? current.petId : defaultPetId }));
+  }
+
+  useEffect(() => {
+    if (!hasAccessToken()) {
+      setIsRestoring(false);
+      return;
+    }
+    let active = true;
+    Promise.all([api.me(), loadAllData()])
+      .then(([currentUser]) => {
+        if (!active) return;
+        setUser({ name: currentUser.full_name, email: currentUser.email });
+        setIsAuthenticated(true);
+      })
+      .catch(() => {
+        clearAccessToken();
+        if (active) setIsAuthenticated(false);
+      })
+      .finally(() => {
+        if (active) setIsRestoring(false);
+      });
+    return () => { active = false; };
+  }, []);
 
   const visibleReminders = useMemo(
     () =>
@@ -1123,15 +1325,26 @@ export function App() {
     setToast(["My Pets", "Health & Care", "Memories", "Settings"].includes(page) ? `${page} opened.` : `${page} module is ready to build next.`);
   }
 
-  function authenticate(nextUser) {
-    setUser(nextUser);
+  async function authenticate(credentials) {
+    const result = credentials.mode === "signup"
+      ? await api.register({ full_name: credentials.fullName, email: credentials.email, password: credentials.password })
+      : await api.login({ email: credentials.email, password: credentials.password });
+    setAccessToken(result.access_token);
+    setUser({ name: result.user.full_name, email: result.user.email });
+    await loadAllData();
     setIsAuthenticated(true);
     setActivePage("Home");
     setToast("Welcome to PawRise.");
   }
 
   function logout() {
+    clearAccessToken();
     setIsAuthenticated(false);
+    setUser({ name: "", email: "" });
+    setPets([]);
+    setReminders([]);
+    setCareHistory([]);
+    setMemories([]);
     setActivePage("Home");
     setToast("");
   }
@@ -1143,38 +1356,41 @@ export function App() {
     setToast(`${petName(pets, id)} profile opened.`);
   }
 
-  function completeReminder(id) {
+  async function completeReminder(id) {
     const completed = reminders.find((item) => item.id === id);
     if (!completed) return;
-    setCareHistory((items) => [{ ...completed, completedId: `${completed.id}-${Date.now()}`, completedOn: "Jul 11, 2026" }, ...items]);
-    const nextDue = addRepeatDate(completed.due, completed.repeat);
-    setReminders((items) => {
-      const remaining = items.filter((item) => item.id !== id);
-      return nextDue ? [...remaining, { ...completed, id: Date.now(), due: nextDue }] : remaining;
-    });
-    setToast(nextDue ? `Completed. The next ${completed.type.toLowerCase()} reminder is scheduled.` : "Reminder completed and moved to care history.");
+    try {
+      await api.reminders.complete(id);
+      await loadAllData();
+      setToast(completed.repeat === "Does not repeat" ? "Reminder completed and moved to care history." : `Completed. The next ${completed.type.toLowerCase()} reminder was scheduled by PawRise.`);
+    } catch (error) {
+      setToast(error.message);
+    }
   }
 
-  function addReminder(event) {
+  async function addReminder(event) {
     event.preventDefault();
-    if (!draft.title.trim()) {
+    if (!draft.petId || !draft.title.trim() || !draft.due) {
       setToast("Add a care title before saving.");
       return;
     }
-
-    setReminders((items) => [
-      {
-        id: Date.now(),
-        petId: draft.petId,
-        type: draft.title.trim(),
-        due: draft.due,
-        repeat: "Does not repeat",
-        note: "Added from quick capture.",
-      },
-      ...items,
-    ]);
-    setDraft({ petId: draft.petId, title: "", due: "2026-07-24" });
-    setToast("New reminder saved.");
+    const knownType = ["vaccine", "deworming", "checkup", "medication", "weight"].includes(draft.title.trim().toLowerCase())
+      ? draft.title.trim().toLowerCase()
+      : "other";
+    try {
+      await api.reminders.create({
+        pet_id: Number(draft.petId),
+        care_type: knownType,
+        due_date: draft.due,
+        repeat_rule: "none",
+        notes: knownType === "other" ? draft.title.trim() : "Added from quick capture.",
+      });
+      await loadAllData();
+      setDraft((current) => ({ petId: current.petId, title: "", due: tomorrowIso() }));
+      setToast("New reminder saved to the database.");
+    } catch (error) {
+      setToast(error.message);
+    }
   }
 
   function switchPet(id) {
@@ -1189,7 +1405,7 @@ export function App() {
   function startAddPet() {
     setFormMode("add");
     setEditingPetId(null);
-    setPetDraft({ ...emptyPetDraft, image: pets[0]?.image ?? damiProfile });
+    setPetDraft({ ...emptyPetDraft, image: "" });
     setToast("Add pet form opened.");
   }
 
@@ -1207,60 +1423,45 @@ export function App() {
     setToast("Profile edit cancelled.");
   }
 
-  function savePet(event) {
+  async function savePet(event) {
     event.preventDefault();
-    if (!petDraft.name.trim() || !petDraft.breed.trim()) {
-      setToast("Name and breed are required.");
+    if (!petDraft.name.trim() || !petDraft.species.trim()) {
+      setToast("Name and species are required.");
       return;
     }
-
-    if (formMode === "edit") {
-      setPets((items) => items.map((pet) => (pet.id === editingPetId ? { ...pet, ...petDraft } : pet)));
-      setSelectedPetId(editingPetId);
-      setToast(`${petDraft.name} profile updated.`);
-    } else {
-      const id = petDraft.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-") || `pet-${Date.now()}`;
-      const nextPet = {
-        ...petDraft,
-        id,
-        age: petDraft.age || "New profile",
-        birthday: petDraft.birthday || "Not set",
-        adoption: petDraft.adoption || "Not set",
-        weight: petDraft.weight || "Not set",
-        note: petDraft.note || "No notes yet.",
-        image: petDraft.image || damiProfile,
-      };
-      setPets((items) => [nextPet, ...items]);
-      setSelectedPetId(nextPet.id);
-      setDraft((current) => ({ ...current, petId: nextPet.id }));
-      setToast(`${nextPet.name} profile added.`);
+    try {
+      const saved = formMode === "edit"
+        ? await api.pets.update(editingPetId, petPayload(petDraft))
+        : await api.pets.create(petPayload(petDraft));
+      await loadAllData();
+      setSelectedPetId(String(saved.id));
+      setToast(`${petDraft.name} profile ${formMode === "edit" ? "updated" : "saved"} in the database.`);
+      setFormMode(null);
+      setEditingPetId(null);
+    } catch (error) {
+      const detail = error.details ? Object.values(error.details)[0] : null;
+      setToast(detail || error.message);
     }
-
-    setFormMode(null);
-    setEditingPetId(null);
   }
 
-  function deletePet(id) {
+  async function deletePet(id) {
     const target = petName(pets, id);
     if (!window.confirm(`Delete ${target}'s profile? This cannot be undone in this prototype.`)) {
       return;
     }
-    setPets((items) => {
-      const next = items.filter((pet) => pet.id !== id);
-      setSelectedPetId(next[0]?.id ?? null);
-      return next;
-    });
-    setReminders((items) => items.filter((item) => item.petId !== id));
-    setCareHistory((items) => items.filter((item) => item.petId !== id));
-    setMemories((items) => items.filter((item) => item.petId !== id));
-    setSelectedPet((current) => (current === id ? "all" : current));
-    setToast(`${target} profile deleted.`);
+    try {
+      await api.pets.remove(id);
+      await loadAllData();
+      setToast(`${target} profile and related records deleted from the database.`);
+    } catch (error) {
+      setToast(error.message);
+    }
   }
 
   function startAddHealth() {
     setHealthFormMode("add");
     setEditingHealthId(null);
-    setHealthDraft({ ...emptyHealthDraft, petId: selectedPet === "all" ? pets[0]?.id ?? "dami" : selectedPet });
+    setHealthDraft({ ...emptyHealthDraft, petId: selectedPet === "all" ? pets[0]?.id ?? "" : selectedPet });
     setToast("Care reminder form reset.");
   }
 
@@ -1274,11 +1475,11 @@ export function App() {
   function cancelHealthForm() {
     setHealthFormMode("add");
     setEditingHealthId(null);
-    setHealthDraft(emptyHealthDraft);
+    setHealthDraft({ ...emptyHealthDraft, petId: pets[0]?.id ?? "" });
     setToast("Reminder edit cancelled.");
   }
 
-  function saveHealthRecord(event) {
+  async function saveHealthRecord(event) {
     event.preventDefault();
     if (!healthDraft.petId || !healthDraft.type || !healthDraft.due) {
       setToast("Pet, care type, and due date are required.");
@@ -1289,36 +1490,43 @@ export function App() {
       return;
     }
 
-    if (healthFormMode === "edit") {
-      setReminders((items) =>
-        items.map((record) => (record.id === editingHealthId ? { ...record, ...healthDraft } : record)),
-      );
-      setToast(`${healthDraft.type} reminder updated.`);
-    } else {
-      setReminders((items) => [{ ...healthDraft, id: Date.now() }, ...items]);
-      setToast(`${healthDraft.type} reminder saved.`);
+    try {
+      if (healthFormMode === "edit") {
+        await api.reminders.update(editingHealthId, reminderPayload(healthDraft));
+      } else {
+        await api.reminders.create(reminderPayload(healthDraft));
+      }
+      await loadAllData();
+      setToast(`${healthDraft.type} reminder ${healthFormMode === "edit" ? "updated" : "saved"} in the database.`);
+      setHealthFormMode("add");
+      setEditingHealthId(null);
+      setHealthDraft({ ...emptyHealthDraft, petId: pets[0]?.id ?? "" });
+    } catch (error) {
+      const detail = error.details ? Object.values(error.details)[0] : null;
+      setToast(detail || error.message);
     }
-
-    setHealthFormMode("add");
-    setEditingHealthId(null);
-    setHealthDraft(emptyHealthDraft);
   }
 
-  function deleteHealthRecord(id) {
+  async function deleteHealthRecord(id) {
     const target = reminders.find((record) => record.id === id);
     if (!window.confirm(`Delete this ${target?.type ?? "care"} reminder?`)) {
       return;
     }
-    setReminders((items) => items.filter((record) => record.id !== id));
-    setToast("Care reminder deleted.");
+    try {
+      await api.reminders.remove(id);
+      await loadAllData();
+      setToast("Care reminder deleted from the database.");
+    } catch (error) {
+      setToast(error.message);
+    }
   }
 
   function startAddMemory() {
     setMemoryFormOpen(true);
     setMemoryDraft({
       ...emptyMemoryDraft,
-      petId: selectedPet === "all" ? pets[0]?.id ?? "dami" : selectedPet,
-      image: selectedPet === "roro" ? roroMemory : damiMemory,
+      petId: selectedPet === "all" ? pets[0]?.id ?? "" : selectedPet,
+      image: "",
     });
     setToast("Add memory form opened.");
   }
@@ -1329,26 +1537,35 @@ export function App() {
     setToast("Memory draft cancelled.");
   }
 
-  function saveMemory(event) {
+  async function saveMemory(event) {
     event.preventDefault();
     if (!memoryDraft.petId || !memoryDraft.title.trim() || !memoryDraft.date.trim()) {
       setToast("Pet, title, and date are required.");
       return;
     }
 
-    setMemories((items) => [
-      {
-        ...memoryDraft,
-        id: Date.now(),
-        scene: memoryDraft.scene || "Everyday moment",
-        description: memoryDraft.description || "A small memory worth keeping.",
-        image: memoryDraft.image || damiMemory,
-      },
-      ...items,
-    ]);
-    setMemoryFormOpen(false);
-    setMemoryDraft(emptyMemoryDraft);
-    setToast("Memory saved to the timeline.");
+    try {
+      await api.memories.create({
+        pet_id: Number(memoryDraft.petId),
+        title: memoryDraft.title.trim(),
+        memory_date: memoryDraft.date,
+        category: "daily_moment",
+        scene: memoryDraft.scene.trim() || null,
+        description: memoryDraft.description.trim() || null,
+        image_url: memoryDraft.image?.startsWith("http") ? memoryDraft.image : null,
+      });
+      await loadAllData();
+      setMemoryFormOpen(false);
+      setMemoryDraft(emptyMemoryDraft);
+      setToast("Memory saved to the database.");
+    } catch (error) {
+      const detail = error.details ? Object.values(error.details)[0] : null;
+      setToast(detail || error.message);
+    }
+  }
+
+  if (isRestoring) {
+    return <main className="auth-page"><section className="auth-form-panel"><div className="auth-form-shell"><h1>Loading PawRise...</h1><p>Restoring your secure session.</p></div></section></main>;
   }
 
   if (!isAuthenticated) {
@@ -1381,7 +1598,7 @@ export function App() {
 
         <div className="sidebar-note">
           <span>Today</span>
-          <strong>Jul 11, 2026</strong>
+          <strong>{new Date().toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" })}</strong>
           <p>{overdueCount > 0 ? `${overdueCount} overdue care item needs attention.` : "All care is on track."}</p>
         </div>
       </aside>
@@ -1417,6 +1634,7 @@ export function App() {
             savePet={savePet}
             selectedPetId={selectedPetId}
             setPetDraft={setPetDraft}
+            setToast={setToast}
             startAddPet={startAddPet}
             startEditPet={startEditPet}
           />
@@ -1451,6 +1669,7 @@ export function App() {
             pets={pets}
             saveMemory={saveMemory}
             setMemoryDraft={setMemoryDraft}
+            setToast={setToast}
             startAddMemory={startAddMemory}
           />
         )}

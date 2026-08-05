@@ -1,0 +1,30 @@
+$kind: http-request
+description: After this request, show the changed reminder row.
+url: "{{baseUrl}}/api/reminders/{{reminderId}}"
+method: PUT
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "pet_id": {{petId}},
+      "care_type": "checkup",
+      "due_date": "{{updatedReminderDueDate}}",
+      "repeat_rule": "every_2_months",
+      "notes": "Updated clinic appointment."
+    }
+scripts:
+  - type: beforeRequest
+    code: |-
+      const due = new Date();
+      due.setDate(due.getDate() + 45);
+      pm.collectionVariables.set('updatedReminderDueDate', due.toISOString().slice(0, 10));
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test('Reminder update returns 200', function () {
+        pm.response.to.have.status(200);
+      });
+    language: text/javascript
+order: 3000

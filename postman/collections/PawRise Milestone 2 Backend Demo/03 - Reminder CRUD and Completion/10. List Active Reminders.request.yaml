@@ -1,0 +1,8 @@
+$kind: http-request
+url: "{{baseUrl}}/api/reminders?pet_id={{petId}}&sort=due_date&order=asc"
+method: GET
+queryParams:
+  pet_id: "{{petId}}"
+  sort: due_date
+  order: asc
+order: 2000

@@ -1,0 +1,12 @@
+$kind: http-request
+description: Show that the pet and its remaining completed reminder are removed by cascade deletion.
+url: "{{baseUrl}}/api/pets/{{petId}}"
+method: DELETE
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Pet deletion returns 200', function () {
+        pm.response.to.have.status(200);
+      });
+    language: text/javascript
+order: 1000

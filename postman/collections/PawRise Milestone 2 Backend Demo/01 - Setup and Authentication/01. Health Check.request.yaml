@@ -1,0 +1,17 @@
+$kind: http-request
+description: Confirms that Flask and SQLite are available.
+url: "{{baseUrl}}/api/health"
+method: GET
+auth:
+  type: noauth
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Health check returns 200', function () {
+        pm.response.to.have.status(200);
+      });
+      pm.test('Database is connected', function () {
+        pm.expect(pm.response.json().data.database).to.eql('connected');
+      });
+    language: text/javascript
+order: 1000

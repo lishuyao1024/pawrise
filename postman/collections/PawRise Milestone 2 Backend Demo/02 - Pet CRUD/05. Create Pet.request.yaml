@@ -1,0 +1,28 @@
+$kind: http-request
+description: After this request, show the new row in the pets table.
+url: "{{baseUrl}}/api/pets"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "name": "Dami",
+      "species": "Cat",
+      "breed": "Siamese",
+      "birthday": "2023-04-18",
+      "adoption_date": "2023-06-12",
+      "weight_lb": 9.2,
+      "image_url": "/uploads/pets/dami-profile.png",
+      "notes": "Gentle, vocal, and happiest near the window."
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Pet creation returns 201', function () {
+        pm.response.to.have.status(201);
+      });
+      pm.collectionVariables.set('petId', pm.response.json().data.id);
+    language: text/javascript
+order: 1000

@@ -1,0 +1,31 @@
+$kind: http-request
+description: After this request, show the active care_reminders row.
+url: "{{baseUrl}}/api/reminders"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "pet_id": {{petId}},
+      "care_type": "medication",
+      "due_date": "{{reminderDueDate}}",
+      "repeat_rule": "every_2_months",
+      "notes": "Flea prevention refill."
+    }
+scripts:
+  - type: beforeRequest
+    code: |-
+      const due = new Date();
+      due.setDate(due.getDate() + 30);
+      pm.collectionVariables.set('reminderDueDate', due.toISOString().slice(0, 10));
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test('Reminder creation returns 201', function () {
+        pm.response.to.have.status(201);
+      });
+      pm.collectionVariables.set('reminderId', pm.response.json().data.id);
+    language: text/javascript
+order: 1000

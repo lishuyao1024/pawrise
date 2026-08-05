@@ -1,0 +1,20 @@
+$kind: http-request
+description: "Show two database rows afterward: the completed source and the new active occurrence."
+url: "{{baseUrl}}/api/reminders/{{reminderId}}/complete"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: "{}"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Reminder completion returns 200', function () {
+        pm.response.to.have.status(200);
+      });
+      const next = pm.response.json().data.next_reminder;
+      pm.expect(next).not.to.eql(null);
+      pm.collectionVariables.set('nextReminderId', next.id);
+    language: text/javascript
+order: 4000
