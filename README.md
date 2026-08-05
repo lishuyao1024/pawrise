@@ -1,31 +1,24 @@
 # PawRise
 
-PawRise is a pet health, care, and memory-management web application. It gives pet owners one organized place to manage pet profiles, future care reminders, completed care history, meaningful memories, and notification settings.
+PawRise is a full-stack pet health, care, and memory-management web application. It gives pet owners one organized place to manage pet profiles, care reminders, completed care history, memories, photos, and notification settings.
 
-> **Current status:** The Milestone 1 React front-end prototype and Milestone 2 database-backed Flask REST API are included in this repository. The backend core is complete and verified by 50 automated tests. Connecting the prototype UI to the REST API is a later integration step.
+> **Current status:** The React frontend is connected to the Flask REST API. Authentication, database-backed pet care features, settings, and authenticated image uploads are implemented. The project is verified by 53 backend tests and a successful frontend production build.
 
-## Business Problem
+## Features
 
-Pet owners often keep vaccination records, medication schedules, appointment notes, and pet photos across paper files, calendars, messaging apps, and separate photo libraries. Fragmented information makes routine care harder to coordinate and important records more difficult to find when needed.
-
-PawRise brings care planning and personal pet memories into one clear application.
-
-## Milestone 2 Backend Features
-
-- Secure user registration and login
-- JWT-protected endpoints
+- Secure user registration and login with JWT authentication
 - Per-user data isolation
-- Pet profile CRUD
-- Care-reminder CRUD
-- Automatic upcoming, due-soon, overdue, and completed statuses
-- Care History
+- Pet profile creation, editing, deletion, and photo upload
+- Care-reminder creation, editing, completion, and deletion
+- Upcoming, due-soon, overdue, and completed care statuses
 - Repeating reminders with automatic next-occurrence creation
-- Memory timeline CRUD
+- Completed care history
+- Memory timeline with image upload
 - Notification-settings management
-- Read-only Dashboard aggregation
+- Dashboard aggregation across pets, reminders, memories, and settings
 - SQLite foreign keys, indexes, and cascade deletion
-- Standard JSON success and error responses
-- 50 automated pytest tests
+- Standard JSON API responses and validation errors
+- Shareable Postman API collection
 
 ## Technology Stack
 
@@ -40,7 +33,7 @@ PawRise brings care planning and personal pet memories into one clear applicatio
 - SQLite
 - pytest
 
-### Frontend Prototype
+### Frontend
 
 - React 19
 - Vite 6
@@ -57,107 +50,98 @@ pawrise/
 |   |-- app/
 |   |   |-- models/       # SQLAlchemy database models
 |   |   `-- routes/       # Flask API blueprints
-|   |-- tests/            # 50 automated tests
+|   |-- tests/            # 53 automated tests
 |   |-- config.py
 |   |-- requirements.txt
 |   `-- run.py
-|-- frontend/             # Milestone 1 React prototype
-|-- docs/                 # API, database, test, Postman, and video documentation
+|-- frontend/             # React application connected to the API
+|-- docs/                 # API, database, test, and Postman documentation
+|-- postman/              # Postman local collection files
 |-- .gitignore
 `-- README.md
 ```
 
-## Run the Backend
+## Quick Start
 
-### 1. Create and Activate a Virtual Environment
+Run the backend and frontend in two separate PowerShell windows.
 
-From `pawrise/backend`:
+### 1. Clone the Repository
 
 ```powershell
+git clone https://github.com/lishuyao1024/pawrise.git
+cd pawrise
+```
+
+### 2. Start the Backend
+
+```powershell
+cd backend
 python -m venv .venv
 .venv\Scripts\Activate.ps1
-```
-
-### 2. Install Dependencies
-
-```powershell
 python -m pip install -r requirements.txt
-```
-
-### 3. Configure Local Environment
-
-Copy:
-
-```text
-.env.example
-```
-
-to:
-
-```text
-.env
-```
-
-Replace the development JWT secret before deployment.
-
-### 4. Create the SQLite Database
-
-```powershell
+Copy-Item .env.example .env
 flask --app run.py init-db
-```
-
-The ignored local database is created at:
-
-```text
-backend/instance/pawrise.db
-```
-
-### 5. Start the API
-
-```powershell
 python run.py
 ```
 
-Health check:
+The API runs at `http://127.0.0.1:5000`. Check it with:
 
 ```text
 GET http://127.0.0.1:5000/api/health
 ```
 
-## Run Automated Tests
+Before deployment, replace the development value of `JWT_SECRET_KEY` in `backend/.env` with a long random secret.
 
-From `pawrise/backend`:
+### 3. Start the Frontend
+
+From a second PowerShell window:
 
 ```powershell
+cd pawrise\frontend
+pnpm install
+pnpm run dev
+```
+
+Open `http://127.0.0.1:5173` in a browser. By default, the frontend connects to `http://127.0.0.1:5000/api`.
+
+To use another API address, create `frontend/.env` and set:
+
+```text
+VITE_API_BASE_URL=http://127.0.0.1:5000/api
+```
+
+## Validation
+
+Run the backend tests from `pawrise/backend`:
+
+```powershell
+.venv\Scripts\Activate.ps1
 pytest
 ```
 
 Verified result:
 
 ```text
-50 passed
+53 passed
 ```
 
-Tests use a separate in-memory SQLite database and do not modify the local development database.
+Build the frontend from `pawrise/frontend`:
+
+```powershell
+pnpm run build
+```
+
+Verified result: the Vite production build completes successfully.
 
 ## Postman Demonstration
 
-Import:
+Import this collection into Postman:
 
 ```text
 docs/PawRise_Milestone2.postman_collection.json
 ```
 
-The collection automatically manages:
-
-- Unique demonstration email
-- JWT access token
-- Pet ID
-- Reminder IDs
-- Memory ID
-- Valid runtime dates
-
-Run the requests in numbered order and refresh the relevant SQLite table after each modifying operation.
+The collection automatically manages the demonstration email, JWT access token, pet ID, reminder IDs, memory ID, and runtime dates. Run the numbered requests in order.
 
 ## Documentation
 
@@ -166,9 +150,7 @@ Run the requests in numbered order and refresh the relevant SQLite table after e
 - [Entity-Relationship Diagram](docs/er_diagram.png)
 - [Test Cases](docs/TEST_CASES.md)
 - [Test Results](docs/TEST_RESULTS.md)
-- [Postman Guide](docs/POSTMAN_GUIDE.md)
-- [Video Demonstration Script](docs/VIDEO_DEMO_SCRIPT.md)
-- [Submission Checklist](docs/SUBMISSION_CHECKLIST.md)
+- [Postman Collection](docs/PawRise_Milestone2.postman_collection.json)
 
 ## Core API Areas
 
@@ -179,28 +161,27 @@ Run the requests in numbered order and refresh the relevant SQLite table after e
 /api/memories
 /api/settings
 /api/dashboard
+/api/uploads
 /api/health
 ```
 
-The complete list of 22 endpoints, expected JSON input/output, validation rules, status codes, and error responses is available in the API documentation.
+## Team Collaboration
+
+Always begin new work from the latest `main` branch:
+
+```powershell
+git switch main
+git pull
+git switch -c your-name-feature
+```
+
+Commit and push the feature branch, then open a pull request into `main`. Do not commit `.env`, local databases, virtual environments, dependency folders, caches, or files stored in `backend/instance/`.
 
 ## Security Notes
 
 - Passwords are stored as secure hashes.
 - Protected endpoints require JWT authentication.
 - Every protected resource query is scoped to the authenticated user.
-- Environment secrets, virtual environments, local databases, and cache files are excluded from Git.
+- Image uploads require authentication and are limited to supported image types and a 5 MB request size.
+- Environment secrets, virtual environments, local databases, uploaded files, and caches are excluded from Git.
 - API errors do not expose password hashes or database credentials.
-
-## Milestone 2 Deliverables
-
-- Working backend API code
-- Full SQLite integration
-- API documentation with sample JSON
-- Database design and ER diagram
-- Automated test code
-- Test cases and test results
-- Postman demonstration collection
-- Video demonstration script
-
-The final submission requires a GitHub repository link and a 6–10 minute video link with appropriate instructor viewing permissions.
