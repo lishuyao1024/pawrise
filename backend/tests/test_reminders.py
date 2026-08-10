@@ -52,6 +52,36 @@ def test_create_reminder_persists_active_row(app, client, auth_headers):
         assert reminder.repeat_rule == "every_2_months"
 
 
+def test_custom_reminder_persists_and_returns_user_label(app, client, auth_headers):
+    pet_id = create_pet(client, auth_headers)
+    response = client.post(
+        "/api/reminders",
+        headers=auth_headers,
+        json=valid_reminder(
+            pet_id,
+            care_type="other",
+            custom_label="Nail trim",
+        ),
+    )
+
+    assert response.status_code == 201
+    assert response.get_json()["data"]["custom_label"] == "Nail trim"
+    with app.app_context():
+        assert CareReminder.query.one().custom_label == "Nail trim"
+
+
+def test_custom_reminder_requires_label(client, auth_headers):
+    pet_id = create_pet(client, auth_headers)
+    response = client.post(
+        "/api/reminders",
+        headers=auth_headers,
+        json=valid_reminder(pet_id, care_type="other", custom_label=""),
+    )
+
+    assert response.status_code == 400
+    assert "custom_label" in response.get_json()["error"]["details"]
+
+
 def test_reminder_endpoints_require_authentication(client):
     assert client.get("/api/reminders").status_code == 401
     assert client.get("/api/reminders/history").status_code == 401

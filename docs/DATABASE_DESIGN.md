@@ -2,7 +2,7 @@
 
 ## 1. Document Purpose
 
-This document defines the relational database design for the PawRise Milestone 2 backend. The database supports authenticated user accounts, pet profiles, care reminders and history, pet memories, notification settings, and dashboard summaries.
+This document defines the relational database design for the PawRise backend. The database supports authenticated user accounts, pet profiles, medical records, linked care reminders and history, pet memories, notification settings, and dashboard summaries.
 
 The design corresponds to the core APIs defined in [API_DOCUMENTATION.md](API_DOCUMENTATION.md).
 
@@ -25,7 +25,7 @@ The local `.db` file is excluded from Git because it contains runtime data. SQLA
 
 ![PawRise database entity-relationship diagram](er_diagram.png)
 
-The standalone PNG identifies all primary keys, foreign keys, core attributes, relationship cardinalities, and delete behaviors used by the Milestone 2 database.
+The standalone PNG shows the original Milestone 2 core. The implemented Medical Records extension and its reminder link are defined in the tables below and should be included in the next diagram revision.
 
 ## 4. Relationship Summary
 
@@ -34,8 +34,10 @@ The standalone PNG identifies all primary keys, foreign keys, core attributes, r
 | `users` | `pets` | One user can own many pets | Delete pets when the owning user is deleted |
 | `users` | `user_settings` | One user has exactly one settings row | Delete settings when the user is deleted |
 | `pets` | `care_reminders` | One pet can have many reminders | Delete reminders when the pet is deleted |
+| `pets` | `medical_records` | One pet can have many veterinary records | Delete records when the pet is deleted |
 | `pets` | `memories` | One pet can have many memories | Delete memories when the pet is deleted |
 | `care_reminders` | `care_reminders` | A completed repeating reminder may generate the next reminder | Keep the generated reminder if its source link is cleared |
+| `medical_records` | `care_reminders` | One confirmed record can generate many standard reminders | Set the source link to null when history is preserved |
 
 All protected database queries must be scoped to the authenticated user. A user must never be able to read or modify another user's records.
 
@@ -85,6 +87,7 @@ Stores pet profiles. Every pet belongs to one user.
 | `user_id` | INTEGER | Yes | Foreign key → `users.id`, indexed | Owner of the pet |
 | `name` | VARCHAR(100) | Yes | — | Pet name |
 | `species` | VARCHAR(50) | Yes | — | Animal type, such as Cat or Dog |
+| `sex` | VARCHAR(10) | No | NULL | Biological sex: `male` or `female` |
 | `breed` | VARCHAR(100) | No | NULL | Pet breed |
 | `birthday` | DATE | No | NULL | Date of birth |
 | `adoption_date` | DATE | No | NULL | Adoption date |
@@ -97,6 +100,7 @@ Stores pet profiles. Every pet belongs to one user.
 #### Constraints
 
 - `name` and `species` must not be blank.
+- `sex`, when supplied, must be `male` or `female`.
 - `birthday` and `adoption_date` cannot be future dates.
 - `weight_lb` must be greater than zero when supplied.
 - The API calculates age from `birthday`; age is not stored as editable text.
@@ -110,6 +114,7 @@ Stores pet profiles. Every pet belongs to one user.
   "user_id": 1,
   "name": "Dami",
   "species": "Cat",
+  "sex": "female",
   "breed": "Siamese",
   "birthday": "2023-04-18",
   "adoption_date": "2023-06-12",
@@ -128,7 +133,9 @@ Stores future care reminders and completed Care History items in the same table.
 | `id` | INTEGER | Yes | Primary key, auto-increment | Internal reminder identifier |
 | `pet_id` | INTEGER | Yes | Foreign key → `pets.id`, indexed | Pet receiving the care |
 | `source_reminder_id` | INTEGER | No | Self foreign key → `care_reminders.id` | Previous occurrence that generated this reminder |
+| `medical_record_id` | INTEGER | No | Foreign key → `medical_records.id`, indexed | Veterinary record that generated this reminder |
 | `care_type` | VARCHAR(30) | Yes | — | Type of planned care |
+| `custom_label` | VARCHAR(100) | No | NULL | User-defined label when `care_type` is `other` |
 | `due_date` | DATE | Yes | Indexed | Planned care date |
 | `repeat_rule` | VARCHAR(30) | Yes | Default `none` | Recurrence rule |
 | `notes` | TEXT | No | NULL | Reminder notes |
@@ -146,6 +153,8 @@ medication
 weight
 other
 ```
+
+The UI labels `other` as **Custom**. A custom reminder stores the user's visible name, such as `Grooming`, in `custom_label`.
 
 #### Allowed `repeat_rule` Values
 
@@ -195,6 +204,7 @@ If any step fails, the transaction is rolled back.
   "pet_id": 1,
   "source_reminder_id": null,
   "care_type": "medication",
+  "custom_label": null,
   "due_date": "2026-08-24",
   "repeat_rule": "every_2_months",
   "notes": "Flea prevention refill.",
@@ -217,7 +227,36 @@ If any step fails, the transaction is rolled back.
 }
 ```
 
-### 5.4 `memories`
+### 5.4 `medical_records`
+
+Stores the original veterinary instructions, a reviewable extraction draft, and the user-confirmed data. Confirmation creates linked rows in `care_reminders`; it does not create a separate task table.
+
+| Column | SQLite type | Required | Key/default | Description |
+|---|---|---:|---|---|
+| `id` | INTEGER | Yes | Primary key, auto-increment | Internal medical-record identifier |
+| `pet_id` | INTEGER | Yes | Foreign key → `pets.id`, indexed | Pet associated with the record |
+| `title` | VARCHAR(150) | Yes | — | User-facing record title |
+| `visit_date` | DATE | No | NULL, indexed | Veterinary visit date |
+| `original_filename` | VARCHAR(255) | No | NULL | Sanitized uploaded filename |
+| `stored_filename` | VARCHAR(255) | No | NULL | Randomized private storage filename |
+| `mime_type` | VARCHAR(100) | No | NULL | Validated upload MIME type |
+| `source_text` | TEXT | Yes | — | Extracted or pasted veterinary instructions |
+| `extracted_data` | JSON | Yes | Empty object | Reviewable extraction draft |
+| `confirmed_data` | JSON | No | NULL | User-confirmed extraction snapshot |
+| `status` | VARCHAR(20) | Yes | Default `draft` | `draft` or `confirmed` |
+| `confirmed_at` | DATETIME | No | NULL | UTC confirmation time |
+| `created_at` | DATETIME | Yes | Current UTC time | Record creation time |
+| `updated_at` | DATETIME | Yes | Current UTC time | Last record update time |
+
+#### Constraints
+
+- The authenticated user must own the associated pet.
+- Uploading creates only a `draft`; no reminder exists until confirmation.
+- A record can be confirmed once.
+- Editing a generated reminder does not change the original source text.
+- Deleting a record can remove incomplete linked reminders, while completed Care History is preserved by default.
+
+### 5.5 `memories`
 
 Stores pet photos and memory timeline content.
 
@@ -266,7 +305,7 @@ other
 }
 ```
 
-### 5.5 `user_settings`
+### 5.6 `user_settings`
 
 Stores one notification-settings row for each user.
 
@@ -309,7 +348,10 @@ Indexes improve the queries used most frequently by the API.
 | `care_reminders` | Index on `pet_id` | Filter reminders by pet |
 | `care_reminders` | Index on `due_date` | Sort active reminders by nearest due date |
 | `care_reminders` | Index on `completed_at` | Separate active reminders from Care History |
+| `care_reminders` | Index on `medical_record_id` | Find reminders generated by one medical record |
 | `care_reminders` | Composite index on (`pet_id`, `completed_at`, `due_date`) | Support filtered active-reminder and history queries |
+| `medical_records` | Index on `pet_id` | List records for an owned pet |
+| `medical_records` | Index on `visit_date` | Order veterinary records by visit date |
 | `memories` | Index on `pet_id` | Filter memories by pet |
 | `memories` | Index on `memory_date` | Display the timeline in date order |
 
@@ -334,6 +376,7 @@ CREATE TABLE pets (
     user_id INTEGER NOT NULL,
     name VARCHAR(100) NOT NULL,
     species VARCHAR(50) NOT NULL,
+    sex VARCHAR(10),
     breed VARCHAR(100),
     birthday DATE,
     adoption_date DATE,
@@ -344,14 +387,37 @@ CREATE TABLE pets (
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT ck_pets_weight_positive
         CHECK (weight_lb IS NULL OR weight_lb > 0),
+    CONSTRAINT ck_pets_sex_valid
+        CHECK (sex IS NULL OR sex IN ('male', 'female')),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE medical_records (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pet_id INTEGER NOT NULL,
+    title VARCHAR(150) NOT NULL,
+    visit_date DATE,
+    original_filename VARCHAR(255),
+    stored_filename VARCHAR(255),
+    mime_type VARCHAR(100),
+    source_text TEXT NOT NULL,
+    extracted_data JSON NOT NULL,
+    confirmed_data JSON,
+    status VARCHAR(20) NOT NULL DEFAULT 'draft',
+    confirmed_at DATETIME,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT ck_medical_records_status CHECK (status IN ('draft', 'confirmed')),
+    FOREIGN KEY (pet_id) REFERENCES pets(id) ON DELETE CASCADE
 );
 
 CREATE TABLE care_reminders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     pet_id INTEGER NOT NULL,
     source_reminder_id INTEGER,
+    medical_record_id INTEGER,
     care_type VARCHAR(30) NOT NULL,
+    custom_label VARCHAR(100),
     due_date DATE NOT NULL,
     repeat_rule VARCHAR(30) NOT NULL DEFAULT 'none',
     notes TEXT,
@@ -380,7 +446,9 @@ CREATE TABLE care_reminders (
     ),
     FOREIGN KEY (pet_id) REFERENCES pets(id) ON DELETE CASCADE,
     FOREIGN KEY (source_reminder_id)
-        REFERENCES care_reminders(id) ON DELETE SET NULL
+        REFERENCES care_reminders(id) ON DELETE SET NULL,
+    FOREIGN KEY (medical_record_id)
+        REFERENCES medical_records(id) ON DELETE SET NULL
 );
 
 CREATE TABLE memories (
@@ -421,8 +489,17 @@ CREATE INDEX ix_reminders_due_date
 CREATE INDEX ix_reminders_completed_at
     ON care_reminders(completed_at);
 
+CREATE INDEX ix_reminders_medical_record_id
+    ON care_reminders(medical_record_id);
+
 CREATE INDEX ix_reminders_pet_completion_due
     ON care_reminders(pet_id, completed_at, due_date);
+
+CREATE INDEX ix_medical_records_pet_id
+    ON medical_records(pet_id);
+
+CREATE INDEX ix_medical_records_visit_date
+    ON medical_records(visit_date);
 
 CREATE INDEX ix_memories_pet_id
     ON memories(pet_id);
@@ -439,6 +516,7 @@ CREATE INDEX ix_memories_memory_date
 | Login/current user | `users` | None |
 | Pet APIs | `pets` | `pets` |
 | Reminder APIs | `pets`, `care_reminders`, `user_settings` | `care_reminders` |
+| Medical Record APIs | `pets`, `medical_records`, `care_reminders` | `medical_records`, `care_reminders` |
 | Memory APIs | `pets`, `memories` | `memories` |
 | Settings APIs | `user_settings` | `user_settings` |
 | Dashboard | `users`, `pets`, `care_reminders`, `memories`, `user_settings` | None |
@@ -551,18 +629,18 @@ The backend implementation will use the following workflow:
 1. Create the Flask application factory.
 2. Configure the SQLite database path.
 3. Initialize SQLAlchemy and Flask-Migrate.
-4. Define the five SQLAlchemy models.
-5. Generate the initial migration.
-6. Apply the migration to create `pawrise.db`.
+4. Define the six SQLAlchemy domain models plus user settings.
+5. Run `flask --app run.py init-db` to create missing tables and apply the safe SQLite reminder-link upgrade.
+6. Keep existing local data while adding `medical_records` and `care_reminders.medical_record_id`.
 7. Optionally run a seed command to create Dami, Roro, reminders, and memories for demonstration.
 8. Run automated tests against a separate temporary test database.
 
 ## 13. Scope Notes
 
-- The Milestone 2 core database contains five tables.
+- The current database contains five domain/account tables plus `user_settings`, six tables total.
 - A separate Dashboard table is intentionally not used.
 - A separate Care History table is intentionally not used; completed reminders remain in `care_reminders`.
 - Reminder status is derived rather than stored.
 - Pet age is derived rather than stored.
 - Image files are not stored as database binary data; only validated paths or URLs are stored.
-- Data-export and AI-assistant APIs are future enhancements and do not require additional Milestone 2 tables.
+- Data export and a hosted AI provider are future enhancements; the current Medical Records extractor runs locally.

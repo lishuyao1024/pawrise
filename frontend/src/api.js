@@ -72,6 +72,46 @@ async function uploadImage(file) {
   return payload.data;
 }
 
+async function createMedicalRecord(formData) {
+  const token = sessionStorage.getItem(TOKEN_KEY);
+  let response;
+  try {
+    response = await fetch(`${API_BASE_URL}/medical-records`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+  } catch {
+    throw new Error("Cannot reach the PawRise API. Make sure the backend is running on port 5000.");
+  }
+
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    const error = new Error(payload?.error?.message ?? "The medical record could not be uploaded.");
+    error.status = response.status;
+    error.details = payload?.error?.details;
+    throw error;
+  }
+  return payload.data;
+}
+
+async function getMedicalRecordDocument(id) {
+  const token = sessionStorage.getItem(TOKEN_KEY);
+  let response;
+  try {
+    response = await fetch(`${API_BASE_URL}/medical-records/${id}/document`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+  } catch {
+    throw new Error("Cannot reach the PawRise API. Make sure the backend is running on port 5000.");
+  }
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    throw new Error(payload?.error?.message ?? "The original document could not be opened.");
+  }
+  return response.blob();
+}
+
 export const api = {
   uploadImage,
   register: (body) => apiRequest("/auth/register", { method: "POST", body }),
@@ -94,6 +134,20 @@ export const api = {
   memories: {
     list: () => apiRequest("/memories"),
     create: (body) => apiRequest("/memories", { method: "POST", body }),
+  },
+  medicalRecords: {
+    list: () => apiRequest("/medical-records"),
+    get: (id) => apiRequest(`/medical-records/${id}`),
+    document: getMedicalRecordDocument,
+    create: createMedicalRecord,
+    confirm: (id, extractedData) => apiRequest(`/medical-records/${id}/confirm`, {
+      method: "POST",
+      body: { extracted_data: extractedData },
+    }),
+    remove: (id, deleteIncompleteReminders = false) => apiRequest(
+      `/medical-records/${id}?delete_incomplete_reminders=${deleteIncompleteReminders}`,
+      { method: "DELETE" },
+    ),
   },
   settings: {
     get: () => apiRequest("/settings"),

@@ -42,6 +42,15 @@ def validate_pet_payload(payload):
     if values["species"] is None:
         details["species"] = "Species is required and must be 50 characters or fewer."
 
+    raw_sex = payload.get("sex")
+    if raw_sex in (None, ""):
+        values["sex"] = None
+    elif isinstance(raw_sex, str) and raw_sex.strip().lower() in {"male", "female"}:
+        values["sex"] = raw_sex.strip().lower()
+    else:
+        values["sex"] = None
+        details["sex"] = "Sex must be male or female."
+
     optional_strings = {
         "breed": 100,
         "image_url": 500,

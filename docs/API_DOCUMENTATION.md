@@ -2,7 +2,7 @@
 
 ## 1. Document Purpose
 
-This document defines the REST APIs required by the PawRise capstone application. PawRise helps authenticated users manage pet profiles, future care reminders, completed care history, pet memories, notification settings, dashboard summaries, and general pet-care guidance.
+This document defines the REST APIs required by the PawRise capstone application. PawRise helps authenticated users manage pet profiles, veterinary Medical Records, linked future care reminders, completed care history, pet memories, notification settings, and dashboard summaries.
 
 The backend will be implemented with Python, Flask, SQLAlchemy, and SQLite. All request and response bodies use JSON unless otherwise stated.
 
@@ -103,6 +103,12 @@ YYYY-MM-DDTHH:MM:SSZ
 | Care reminders | DELETE | `/reminders/{reminder_id}` | Yes | Delete one care reminder |
 | Care reminders | POST | `/reminders/{reminder_id}/complete` | Yes | Complete a reminder |
 | Care reminders | GET | `/reminders/history` | Yes | List completed reminders |
+| Medical records | POST | `/medical-records` | Yes | Upload instructions and create an extraction draft |
+| Medical records | GET | `/medical-records` | Yes | List the user's medical records |
+| Medical records | GET | `/medical-records/{record_id}` | Yes | Get a record and its extraction draft |
+| Medical records | GET | `/medical-records/{record_id}/document` | Yes | Download the authenticated user's source document |
+| Medical records | POST | `/medical-records/{record_id}/confirm` | Yes | Confirm extracted items and create linked reminders |
+| Medical records | DELETE | `/medical-records/{record_id}` | Yes | Delete a record with optional incomplete-reminder cleanup |
 | Memories | POST | `/memories` | Yes | Create a memory |
 | Memories | GET | `/memories` | Yes | List memories |
 | Memories | PUT | `/memories/{memory_id}` | Yes | Update one memory |
@@ -298,6 +304,7 @@ POST /api/pets
 {
   "name": "Dami",
   "species": "Cat",
+  "sex": "female",
   "breed": "Siamese",
   "birthday": "2023-04-18",
   "adoption_date": "2023-06-12",
@@ -311,6 +318,7 @@ POST /api/pets
 
 - `name` is required.
 - `species` is required.
+- `sex` is optional; accepted values are `male` and `female`.
 - `birthday` and `adoption_date` cannot be future dates.
 - `weight_lb`, when provided, must be greater than zero.
 - Age is calculated from `birthday`; it is not stored as editable text.
@@ -326,6 +334,7 @@ POST /api/pets
     "user_id": 1,
     "name": "Dami",
     "species": "Cat",
+    "sex": "female",
     "breed": "Siamese",
     "birthday": "2023-04-18",
     "adoption_date": "2023-06-12",
@@ -565,6 +574,8 @@ weight
 other
 ```
 
+The client displays `other` as **Custom**. When `care_type` is `other`, `custom_label` is required and stores the user-defined care name.
+
 Allowed `repeat_rule` values:
 
 ```text
@@ -588,6 +599,7 @@ POST /api/reminders
 {
   "pet_id": 1,
   "care_type": "medication",
+  "custom_label": null,
   "due_date": "2026-08-24",
   "repeat_rule": "every_2_months",
   "notes": "Flea prevention refill."
@@ -597,6 +609,7 @@ POST /api/reminders
 #### Validation Rules
 
 - `pet_id`, `care_type`, and `due_date` are required.
+- `custom_label` is required when `care_type` is `other`.
 - The pet must belong to the authenticated user.
 - A newly created reminder must have a future `due_date`.
 - `status` and `completed_at` cannot be supplied by the client.
@@ -1171,7 +1184,88 @@ pet_id
 
 ---
 
-## 12. Authorization and Data Protection Requirements
+## 12. Medical Record APIs
+
+Medical Records use a review-before-confirmation workflow. Uploading a record never creates reminders by itself.
+
+### 12.1 Upload Medical Record
+
+```text
+POST /api/medical-records
+Authorization: Bearer <access_token>
+Content-Type: multipart/form-data
+```
+
+Form fields:
+
+| Field | Required | Description |
+|---|---:|---|
+| `pet_id` | Yes | An authenticated user's pet ID |
+| `title` | Yes | Record title, maximum 150 characters |
+| `visit_date` | No | Non-future veterinary visit date |
+| `document` | Conditional | PDF, TXT, JPG, PNG, or WebP, maximum request size 5 MB |
+| `source_text` | Conditional | Pasted veterinary instructions; required when the document has no readable text |
+
+The response contains a `draft` medical record and `extracted_data` with medication and follow-up information. PDF and TXT extraction works locally. Scanned images require pasted text in the MVP.
+
+### 12.2 List and Get Medical Records
+
+```text
+GET /api/medical-records
+GET /api/medical-records/{record_id}
+```
+
+List responses omit the full source text. The detail response includes the source text, extraction draft, confirmation data, linked reminder IDs, and incomplete reminder count. All queries are scoped through the record's pet to the authenticated user.
+
+### 12.3 Confirm Extraction and Create Reminders
+
+```text
+POST /api/medical-records/{record_id}/confirm
+Content-Type: application/json
+```
+
+```json
+{
+  "extracted_data": {
+    "medications": [
+      {
+        "include": true,
+        "name": "Carprofen",
+        "dose": "25 mg",
+        "frequency": "once daily",
+        "duration_days": 3,
+        "start_date": "2026-08-10",
+        "instructions": "with food",
+        "source_text": "Give Carprofen 25 mg once daily with food for 3 days."
+      }
+    ],
+    "follow_up": {
+      "include": true,
+      "date": "2026-08-19",
+      "clinic": "Green Valley Vet"
+    }
+  }
+}
+```
+
+Confirmation creates ordinary `care_reminders` rows in one transaction:
+
+- Medication maps to `care_type = medication`.
+- Follow-up maps to `care_type = checkup`.
+- Every generated row stores `medical_record_id` and uses `repeat_rule = none`.
+- A record can be confirmed only once; a second request returns `409 Conflict`.
+
+### 12.4 Delete Medical Record
+
+```text
+DELETE /api/medical-records/{record_id}?delete_incomplete_reminders=true
+```
+
+When `delete_incomplete_reminders=true`, linked incomplete reminders are removed. Completed Care History entries are preserved and their `medical_record_id` becomes null. When false, all reminders are preserved.
+
+---
+
+## 13. Authorization and Data Protection Requirements
 
 1. Passwords must be hashed using a secure password-hashing function.
 2. API responses must never return password hashes.
@@ -1182,7 +1276,7 @@ pet_id
 7. API errors must not expose stack traces, database credentials, or internal file paths.
 8. Secrets such as JWT signing keys must be stored in environment variables.
 
-## 13. Database Update Expectations for the Demonstration
+## 14. Database Update Expectations for the Demonstration
 
 The Milestone 2 video must show database evidence after each modifying API operation:
 
@@ -1200,18 +1294,21 @@ The Milestone 2 video must show database evidence after each modifying API opera
 | Update memory | Existing memory row contains updated values |
 | Delete memory | Memory row is removed |
 | Update settings | Existing `user_settings` row contains updated values |
+| Upload medical record | New `medical_records` row with status `draft`; no reminders yet |
+| Confirm medical record | Record status becomes `confirmed`; linked rows appear in `care_reminders` |
+| Delete medical record | Source row is removed; completed Care History remains |
 
-## 14. Current Scope Decisions
+## 15. Current Scope Decisions
 
 - The Dashboard uses existing pet, reminder, and memory data; it does not have its own database table.
 - Reminder status is calculated by the backend and is not directly edited by users.
 - Completed reminders remain available as Care History.
 - Completing a repeating reminder automatically creates its next occurrence.
 - Pet age is calculated from the birthday.
-- The first backend version uses an `image_url` field. Image file upload handling may be added as a separate endpoint after the core database-backed APIs are complete.
+- Medical Record extraction is local and deterministic in the MVP; a hosted model can replace the extractor later without bypassing user confirmation.
 - Email delivery, password-reset email delivery, payment processing, veterinary diagnosis, prescriptions, emergency services, and veterinary-clinic integration are outside the Milestone 2 core backend scope.
 
-## 15. Future Enhancements
+## 16. Future Enhancements
 
 The following endpoints are intentionally excluded from the Milestone 2 core backend. They may be designed and implemented after all required database-backed APIs are complete and tested:
 

@@ -11,6 +11,8 @@ class Config:
     )
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=8)
     JSON_SORT_KEYS = False
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+    OPENAI_MEDICAL_MODEL = os.getenv("OPENAI_MEDICAL_MODEL", "gpt-5-nano")
 
     @staticmethod
     def frontend_origins():

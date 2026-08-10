@@ -6,8 +6,8 @@ All PawRise Milestone 2 backend automated tests passed.
 
 | Metric | Result |
 |---|---:|
-| Total tests collected | 50 |
-| Passed | 50 |
+| Total tests collected | 62 |
+| Passed | 62 |
 | Failed | 0 |
 | Errors | 0 |
 | Warnings | 0 |
@@ -17,7 +17,7 @@ All PawRise Milestone 2 backend automated tests passed.
 
 | Item | Value |
 |---|---|
-| Execution date | July 27, 2026 |
+| Execution date | August 9, 2026 |
 | Time zone | America/Chicago |
 | Operating system | Windows |
 | Python | 3.12.13 |
@@ -40,8 +40,8 @@ The tests were executed from `pawrise/backend`:
 Final console result:
 
 ```text
-..................................................                       [100%]
-50 passed in 40.74s
+..............................................................           [100%]
+62 passed
 ```
 
 ## 4. Results by Test Module
@@ -57,11 +57,13 @@ Final console result:
 | `test_memories.py` | Memory CRUD, validation, filters, ownership | 8 | 8 | 0 | PASS |
 | `test_settings.py` | Settings defaults, update, validation | 4 | 4 | 0 | PASS |
 | `test_dashboard.py` | Dashboard aggregation, filters, ownership | 4 | 4 | 0 | PASS |
-| **Total** |  | **50** | **50** | **0** | **PASS** |
+| `test_uploads.py` | Authenticated image upload validation | 3 | 3 | 0 | PASS |
+| `test_medical_records.py` | Extraction drafts, confirmation, reminder linkage, deletion, ownership | 9 | 9 | 0 | PASS |
+| **Total** |  | **62** | **62** | **0** | **PASS** |
 
 ## 5. API Route Verification
 
-Flask route inspection confirmed that all 22 Milestone 2 core endpoints are registered:
+Flask route inspection confirmed the original core endpoints plus authenticated uploads and six Medical Records endpoints are registered:
 
 ```text
 GET    /api/health
@@ -92,17 +94,28 @@ GET    /api/settings
 PUT    /api/settings
 
 GET    /api/dashboard
+
+POST   /api/uploads
+GET    /api/uploads/{filename}
+
+POST   /api/medical-records
+GET    /api/medical-records
+GET    /api/medical-records/{record_id}
+GET    /api/medical-records/{record_id}/document
+POST   /api/medical-records/{record_id}/confirm
+DELETE /api/medical-records/{record_id}
 ```
 
 ## 6. Database Verification Results
 
 ### 6.1 Tables
 
-The automated schema test confirmed all five required tables:
+The automated schema test confirmed all six application tables:
 
 ```text
 care_reminders
 memories
+medical_records
 pets
 user_settings
 users
@@ -112,7 +125,7 @@ Result: **PASS**
 
 ### 6.2 Indexes
 
-The automated schema test confirmed the seven documented custom indexes:
+The automated schema test confirmed the documented custom indexes, including Medical Records and reminder-source indexes:
 
 ```text
 ix_pets_user_id
@@ -235,6 +248,6 @@ The tested PawRise backend satisfies the Milestone 2 core technical requirements
 - Validation and error responses work.
 - Repeating-reminder logic works.
 - Dashboard data is derived from source tables.
-- All 50 automated tests pass.
+- All 62 automated tests pass.
 
 Overall test status: **READY FOR POSTMAN DEMONSTRATION**

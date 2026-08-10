@@ -1,7 +1,7 @@
 from datetime import date
 
 from app.extensions import db
-from app.models import CareReminder, Memory, Pet, User, UserSetting
+from app.models import CareReminder, MedicalRecord, Memory, Pet, User, UserSetting
 
 
 def test_core_models_persist_relationships_and_cascade(app):
@@ -42,8 +42,15 @@ def test_core_models_persist_relationships_and_cascade(app):
             memory_date=date(2026, 7, 8),
             category="daily_moment",
         )
+        medical_record = MedicalRecord(
+            title="Spay surgery discharge",
+            source_text="Give Carprofen 25 mg once daily.",
+            extracted_data={"medications": []},
+        )
         pet.reminders.extend([reminder, next_reminder])
         pet.memories.append(memory)
+        pet.medical_records.append(medical_record)
+        reminder.medical_record = medical_record
 
         db.session.add(user)
         db.session.commit()
@@ -53,6 +60,8 @@ def test_core_models_persist_relationships_and_cascade(app):
         assert Pet.query.count() == 1
         assert CareReminder.query.count() == 2
         assert Memory.query.count() == 1
+        assert MedicalRecord.query.count() == 1
+        assert reminder.medical_record_id == medical_record.id
         assert next_reminder.source_reminder_id == reminder.id
         assert user.settings.default_lead_days == 7
 
@@ -62,6 +71,7 @@ def test_core_models_persist_relationships_and_cascade(app):
         assert Pet.query.count() == 0
         assert CareReminder.query.count() == 0
         assert Memory.query.count() == 0
+        assert MedicalRecord.query.count() == 0
         assert User.query.count() == 1
         assert UserSetting.query.count() == 1
 

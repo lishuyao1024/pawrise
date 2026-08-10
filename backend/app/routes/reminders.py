@@ -65,6 +65,9 @@ def reminder_status(reminder, lead_days):
 def serialize_reminder(reminder, lead_days):
     payload = reminder.to_dict()
     payload["pet_name"] = reminder.pet.name
+    payload["medical_record_title"] = (
+        reminder.medical_record.title if reminder.medical_record else None
+    )
     payload["status"] = reminder_status(reminder, lead_days)
     return payload
 
@@ -97,6 +100,14 @@ def validate_reminder_payload(payload, user_id):
     if care_type not in CARE_TYPES:
         details["care_type"] = f"Care type must be one of: {', '.join(CARE_TYPES)}."
     values["care_type"] = care_type
+
+    custom_label = clean_string(payload.get("custom_label"), max_length=100)
+    if care_type == "other":
+        if custom_label is None:
+            details["custom_label"] = "Enter a custom care type."
+        values["custom_label"] = custom_label
+    else:
+        values["custom_label"] = None
 
     repeat_rule = clean_string(payload.get("repeat_rule"), max_length=30) or "none"
     if repeat_rule not in REPEAT_RULES:
@@ -350,6 +361,7 @@ def complete_reminder(reminder_id):
             pet_id=reminder.pet_id,
             source_reminder=reminder,
             care_type=reminder.care_type,
+            custom_label=reminder.custom_label,
             due_date=add_months(reminder.due_date, months),
             repeat_rule=reminder.repeat_rule,
             notes=reminder.notes,

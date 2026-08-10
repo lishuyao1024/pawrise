@@ -2,7 +2,7 @@
 
 PawRise is a full-stack pet health, care, and memory-management web application. It gives pet owners one organized place to manage pet profiles, care reminders, completed care history, memories, photos, and notification settings.
 
-> **Current status:** The React frontend is connected to the Flask REST API. Authentication, database-backed pet care features, settings, and authenticated image uploads are implemented. The project is verified by 53 backend tests and a successful frontend production build.
+> **Current status:** The React frontend is connected to the Flask REST API. Authentication, database-backed pet care features, Medical Records extraction and confirmation, linked reminders, settings, and authenticated uploads are implemented. The project is verified by 62 backend tests and a successful frontend production build.
 
 ## Features
 
@@ -13,6 +13,8 @@ PawRise is a full-stack pet health, care, and memory-management web application.
 - Upcoming, due-soon, overdue, and completed care statuses
 - Repeating reminders with automatic next-occurrence creation
 - Completed care history
+- Veterinary Medical Records with local PDF/TXT extraction and review-before-confirmation
+- Confirmed medication and follow-up details linked to standard care reminders
 - Memory timeline with image upload
 - Notification-settings management
 - Dashboard aggregation across pets, reminders, memories, and settings
@@ -50,7 +52,7 @@ pawrise/
 |   |-- app/
 |   |   |-- models/       # SQLAlchemy database models
 |   |   `-- routes/       # Flask API blueprints
-|   |-- tests/            # 53 automated tests
+|   |-- tests/            # 62 automated tests
 |   |-- config.py
 |   |-- requirements.txt
 |   `-- run.py
@@ -84,6 +86,8 @@ flask --app run.py init-db
 python run.py
 ```
 
+Running `init-db` again is safe for the local SQLite database. It creates missing Medical Records tables and adds the reminder link without deleting existing PawRise data.
+
 The API runs at `http://127.0.0.1:5000`. Check it with:
 
 ```text
@@ -91,6 +95,11 @@ GET http://127.0.0.1:5000/api/health
 ```
 
 Before deployment, replace the development value of `JWT_SECRET_KEY` in `backend/.env` with a long random secret.
+
+Medical Record extraction uses OpenAI Structured Outputs when `OPENAI_API_KEY` is set.
+Copy `backend/.env.example` to `backend/.env`, add the key there, and optionally
+change `OPENAI_MEDICAL_MODEL`. If the API is unavailable, PawRise automatically
+falls back to its offline rules and still requires the user to review every field.
 
 ### 3. Start the Frontend
 
@@ -122,7 +131,7 @@ pytest
 Verified result:
 
 ```text
-53 passed
+62 passed
 ```
 
 Build the frontend from `pawrise/frontend`:
@@ -151,6 +160,7 @@ The collection automatically manages the demonstration email, JWT access token, 
 - [Test Cases](docs/TEST_CASES.md)
 - [Test Results](docs/TEST_RESULTS.md)
 - [Postman Collection](docs/PawRise_Milestone2.postman_collection.json)
+- [Medical Records and Care Reminders Integration](docs/MEDICAL_RECORDS_AND_REMINDERS.md)
 
 ## Core API Areas
 
@@ -158,6 +168,7 @@ The collection automatically manages the demonstration email, JWT access token, 
 /api/auth
 /api/pets
 /api/reminders
+/api/medical-records
 /api/memories
 /api/settings
 /api/dashboard
@@ -182,6 +193,6 @@ Commit and push the feature branch, then open a pull request into `main`. Do not
 - Passwords are stored as secure hashes.
 - Protected endpoints require JWT authentication.
 - Every protected resource query is scoped to the authenticated user.
-- Image uploads require authentication and are limited to supported image types and a 5 MB request size.
+- Image and medical-record uploads require authentication and are limited to supported file types and a 5 MB request size.
 - Environment secrets, virtual environments, local databases, uploaded files, and caches are excluded from Git.
 - API errors do not expose password hashes or database credentials.
