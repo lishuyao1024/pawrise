@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Bell, CalendarDays, Cat, CheckCircle2, Dog, Download, Eye, EyeOff, FileText, LogOut, Mars, PawPrint, Repeat2, ShieldCheck, Sparkles, Syringe, Trash2, Upload, UserRound, Venus, X } from "lucide-react";
+import { ArrowLeft, Bell, CalendarDays, Cat, CheckCircle2, Dog, Download, Eye, EyeOff, FileText, LogOut, Mars, PawPrint, Pencil, Repeat2, ShieldCheck, Sparkles, Syringe, Trash2, Upload, UserRound, Venus, X } from "lucide-react";
 import authBrandPanel from "./assets/auth-brand-panel.png";
 import damiMemory from "./assets/dami-memory.png";
 import damiProfile from "./assets/dami-profile.png";
@@ -1143,7 +1143,10 @@ function MemoryTimelineView({
   memoryDraft,
   formOpen,
   startAddMemory,
+  startEditMemory,
   cancelMemoryForm,
+  deleteMemory,
+  editingMemoryId,
   saveMemory,
   setMemoryDraft,
   setToast,
@@ -1223,11 +1226,11 @@ function MemoryTimelineView({
 
       <section className="memory-layout">
         {formOpen && (
-          <section className="memory-form-panel" aria-label="Add memory form">
+          <section className="memory-form-panel" aria-label={editingMemoryId ? "Edit memory form" : "Add memory form"}>
             <div className="panel-heading">
               <div>
-                <span className="eyebrow">New memory</span>
-                <h2>Add a moment</h2>
+                <span className="eyebrow">{editingMemoryId ? "Edit memory" : "New memory"}</span>
+                <h2>{editingMemoryId ? "Update this moment" : "Add a moment"}</h2>
               </div>
               <button className="secondary-button" type="button" onClick={cancelMemoryForm}>
                 Cancel
@@ -1275,10 +1278,15 @@ function MemoryTimelineView({
                   type="file"
                   onChange={uploadMemoryPhoto}
                 />
-                <small>{photoUploading ? "Uploading photo..." : memoryDraft.photoName || "JPG, PNG, GIF, or WebP; maximum 5 MB."}</small>
+                <small>
+                  {photoUploading
+                    ? "Uploading photo..."
+                    : memoryDraft.photoName
+                      || (editingMemoryId ? "The current photo will be kept unless you choose another." : "JPG, PNG, GIF, or WebP; maximum 5 MB.")}
+                </small>
               </label>
               <button className="primary-button wide-field" disabled={photoUploading} type="submit">
-                {photoUploading ? "Uploading..." : "Save memory"}
+                {photoUploading ? "Uploading..." : editingMemoryId ? "Update memory" : "Save memory"}
               </button>
             </form>
           </section>
@@ -1296,6 +1304,14 @@ function MemoryTimelineView({
                 <h2>{memory.title}</h2>
                 <p className="memory-scene">{memory.scene}</p>
                 <p>{memory.description}</p>
+                <div className="memory-card-actions">
+                  <button className="icon-text-button" type="button" onClick={() => startEditMemory(memory)}>
+                    <Pencil aria-hidden="true" /> Edit
+                  </button>
+                  <button className="icon-text-button danger" type="button" onClick={() => deleteMemory(memory.id)}>
+                    <Trash2 aria-hidden="true" /> Delete
+                  </button>
+                </div>
               </div>
               <button
                 aria-label={`Open ${memory.title} photo`}
@@ -1737,6 +1753,7 @@ export function App() {
   const [healthFilterType, setHealthFilterType] = useState("All");
   const [healthSortOrder, setHealthSortOrder] = useState("Soonest");
   const [memoryFormOpen, setMemoryFormOpen] = useState(false);
+  const [editingMemoryId, setEditingMemoryId] = useState(null);
   const [memoryDraft, setMemoryDraft] = useState(emptyMemoryDraft);
   const [toast, setToast] = useState("");
 
@@ -2014,6 +2031,7 @@ export function App() {
       ? selectedPet
       : pets[0]?.id ?? "";
     setMemoryFormOpen(true);
+    setEditingMemoryId(null);
     setMemoryDraft({
       ...emptyMemoryDraft,
       petId: defaultPetId,
@@ -2022,10 +2040,27 @@ export function App() {
     setToast("Add memory form opened.");
   }
 
+  function startEditMemory(memory) {
+    setEditingMemoryId(memory.id);
+    setMemoryFormOpen(true);
+    setMemoryDraft({
+      ...emptyMemoryDraft,
+      petId: memory.petId,
+      title: memory.title,
+      date: memory.date,
+      image: memory.image,
+    });
+    setToast(`Editing “${memory.title}”.`);
+    window.setTimeout(() => {
+      document.querySelector(".memory-form-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+  }
+
   function cancelMemoryForm() {
     setMemoryFormOpen(false);
+    setEditingMemoryId(null);
     setMemoryDraft(emptyMemoryDraft);
-    setToast("Memory draft cancelled.");
+    setToast(`Memory ${editingMemoryId ? "edit" : "draft"} cancelled.`);
   }
 
   async function saveMemory(event) {
@@ -2036,7 +2071,7 @@ export function App() {
     }
 
     try {
-      await api.memories.create({
+      const payload = {
         pet_id: Number(memoryDraft.petId),
         title: memoryDraft.title.trim(),
         memory_date: memoryDraft.date,
@@ -2044,14 +2079,40 @@ export function App() {
         scene: null,
         description: null,
         image_url: memoryDraft.image?.startsWith("http") ? memoryDraft.image : null,
-      });
+      };
+      if (editingMemoryId) {
+        await api.memories.update(editingMemoryId, payload);
+      } else {
+        await api.memories.create(payload);
+      }
       await loadAllData();
       setMemoryFormOpen(false);
+      setEditingMemoryId(null);
       setMemoryDraft(emptyMemoryDraft);
-      setToast("Memory saved to the database.");
+      setToast(`Memory ${editingMemoryId ? "updated" : "saved"} in the database.`);
     } catch (error) {
       const detail = error.details ? Object.values(error.details)[0] : null;
       setToast(detail || error.message);
+    }
+  }
+
+  async function deleteMemory(id) {
+    const target = memories.find((memory) => memory.id === id);
+    if (!window.confirm(`Delete “${target?.title ?? "this memory"}”? This cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await api.memories.remove(id);
+      await loadAllData();
+      if (editingMemoryId === id) {
+        setMemoryFormOpen(false);
+        setEditingMemoryId(null);
+        setMemoryDraft(emptyMemoryDraft);
+      }
+      setToast("Memory deleted from the database.");
+    } catch (error) {
+      setToast(error.message);
     }
   }
 
@@ -2175,6 +2236,8 @@ export function App() {
         {activePage === "Memories" && (
           <MemoryTimelineView
             cancelMemoryForm={cancelMemoryForm}
+            deleteMemory={deleteMemory}
+            editingMemoryId={editingMemoryId}
             formOpen={memoryFormOpen}
             memories={memories}
             memoryDraft={memoryDraft}
@@ -2183,6 +2246,7 @@ export function App() {
             setMemoryDraft={setMemoryDraft}
             setToast={setToast}
             startAddMemory={startAddMemory}
+            startEditMemory={startEditMemory}
           />
         )}
         {activePage === "Settings" && <SettingsView onLogout={logout} setToast={setToast} user={user} />}
