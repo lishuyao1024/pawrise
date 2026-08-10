@@ -8,6 +8,7 @@ EXPECTED_TABLES = {
     "pets",
     "care_reminders",
     "memories",
+    "medical_records",
     "user_settings",
 }
 
@@ -16,13 +17,16 @@ EXPECTED_INDEXES = {
     "ix_reminders_pet_id",
     "ix_reminders_due_date",
     "ix_reminders_completed_at",
+    "ix_reminders_medical_record_id",
     "ix_reminders_pet_completion_due",
     "ix_memories_pet_id",
     "ix_memories_memory_date",
+    "ix_medical_records_pet_id",
+    "ix_medical_records_visit_date",
 }
 
 
-def test_database_contains_five_core_tables(app):
+def test_database_contains_core_tables(app):
     with app.app_context():
         inspector = inspect(db.engine)
         assert set(inspector.get_table_names()) == EXPECTED_TABLES

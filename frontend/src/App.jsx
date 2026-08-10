@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bell, CalendarDays, Download, Eye, EyeOff, LogOut, PawPrint, Repeat2, ShieldCheck, Syringe, UserRound } from "lucide-react";
+import { Bell, CalendarDays, Cat, CheckCircle2, Dog, Download, Eye, EyeOff, FileText, LogOut, Mars, PawPrint, Repeat2, ShieldCheck, Sparkles, Syringe, Trash2, Upload, UserRound, Venus } from "lucide-react";
 import authBrandPanel from "./assets/auth-brand-panel.png";
 import damiMemory from "./assets/dami-memory.png";
 import damiProfile from "./assets/dami-profile.png";
@@ -108,6 +108,7 @@ const initialMemories = [
 const emptyPetDraft = {
   name: "",
   species: "Cat",
+  sex: "",
   breed: "",
   age: "",
   birthday: "",
@@ -119,6 +120,7 @@ const emptyPetDraft = {
 const emptyHealthDraft = {
   petId: "",
   type: "Vaccine",
+  customType: "",
   due: tomorrowIso(),
   repeat: "Every year",
   note: "",
@@ -128,10 +130,15 @@ const emptyMemoryDraft = {
   petId: "",
   title: "",
   date: todayIso(),
-  scene: "",
-  description: "",
   image: damiMemory,
   photoName: "",
+};
+
+const emptyMedicalRecordDraft = {
+  petId: "",
+  title: "",
+  visitDate: todayIso(),
+  sourceText: "",
 };
 
 function petName(pets, id) {
@@ -180,6 +187,7 @@ function normalizePet(pet) {
     id: String(pet.id),
     name: pet.name,
     species: pet.species,
+    sex: pet.sex || "",
     breed: pet.breed || pet.species,
     age: pet.age_years == null ? "Age not set" : `${pet.age_years} years`,
     birthday: pet.birthday || "",
@@ -191,16 +199,24 @@ function normalizePet(pet) {
 }
 
 function normalizeReminder(reminder) {
+  const category = reminder.care_type === "other"
+    ? "Custom"
+    : reminder.care_type.charAt(0).toUpperCase() + reminder.care_type.slice(1);
   return {
     id: String(reminder.id),
     petId: String(reminder.pet_id),
-    type: reminder.care_type.charAt(0).toUpperCase() + reminder.care_type.slice(1),
+    type: reminder.care_type === "other" ? (reminder.custom_label || "Custom") : category,
+    category,
+    customType: reminder.custom_label || "",
     due: reminder.due_date,
     repeat: repeatFromApi[reminder.repeat_rule] || "Does not repeat",
     note: reminder.notes || "",
     status: reminder.status,
     completedId: String(reminder.id),
     completedOn: reminder.completed_at ? new Date(reminder.completed_at).toLocaleDateString("en-US") : "",
+    medicalRecordId: reminder.medical_record_id ? String(reminder.medical_record_id) : null,
+    medicalRecordTitle: reminder.medical_record_title || "",
+    sourceType: reminder.source_type || "manual",
   };
 }
 
@@ -220,6 +236,7 @@ function petPayload(draft) {
   return {
     name: draft.name.trim(),
     species: draft.species.trim(),
+    sex: draft.sex || null,
     breed: draft.breed.trim() || null,
     birthday: draft.birthday || null,
     adoption_date: draft.adoption || null,
@@ -232,7 +249,8 @@ function petPayload(draft) {
 function reminderPayload(draft) {
   return {
     pet_id: Number(draft.petId),
-    care_type: draft.type.toLowerCase(),
+    care_type: draft.type === "Custom" ? "other" : draft.type.toLowerCase(),
+    custom_label: draft.type === "Custom" ? draft.customType.trim() : null,
     due_date: draft.due,
     repeat_rule: repeatToApi[draft.repeat] || "none",
     notes: draft.note?.trim() || null,
@@ -259,7 +277,7 @@ function StatusPill({ status }) {
 }
 
 function AuthView({ onAuthenticate }) {
-  const [mode, setMode] = useState("login");
+  const [mode, setMode] = useState(() => new URLSearchParams(window.location.search).get("mode") === "signup" ? "signup" : "login");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -369,15 +387,115 @@ function AuthView({ onAuthenticate }) {
   );
 }
 
+function PetOnboardingView({ petDraft, setPetDraft, onSave, onSkip, statusMessage }) {
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function uploadPetPhoto(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setPhotoUploading(true);
+    setMessage("");
+    try {
+      const uploaded = await api.uploadImage(file);
+      setPetDraft((current) => ({ ...current, image: uploaded.url, photoName: file.name }));
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setPhotoUploading(false);
+    }
+  }
+
+  return (
+    <main className="pet-onboarding-page">
+      <section className="pet-onboarding-card" aria-labelledby="pet-onboarding-title">
+        <aside className="pet-onboarding-intro">
+          <div className="pet-onboarding-brand"><PawPrint aria-hidden="true" /><span>PawRise</span></div>
+          <div className="account-created-pill"><CheckCircle2 aria-hidden="true" />Account created</div>
+          <h2>One more step</h2>
+          <p>Add your first pet so we can personalize care tips, reminders, and support just for them.</p>
+
+          <div className="onboarding-photo-wrap">
+            <label className={petDraft.image ? "pet-photo-picker onboarding-photo has-image" : "pet-photo-picker onboarding-photo"}>
+              <input accept="image/jpeg,image/png" disabled={photoUploading} type="file" onChange={uploadPetPhoto} />
+              {petDraft.image ? (
+                <img alt="Pet profile preview" src={petDraft.image} />
+              ) : (
+                <><PawPrint aria-hidden="true" /><strong>{photoUploading ? "Uploading..." : "Add photo"}</strong></>
+              )}
+            </label>
+            <small>{petDraft.photoName || "JPG or PNG, up to 5 MB"}</small>
+          </div>
+        </aside>
+
+        <section className="pet-onboarding-form-panel">
+          <div className="pet-onboarding-heading">
+            <h1 id="pet-onboarding-title">Add your pet</h1>
+            <button type="button" onClick={onSkip}>Skip for now</button>
+          </div>
+
+          <form className="onboarding-pet-form" onSubmit={onSave}>
+            <label className="onboarding-name-field">
+              <span>Name</span>
+              <input autoFocus required value={petDraft.name} onChange={(event) => setPetDraft((current) => ({ ...current, name: event.target.value }))} placeholder="Pet name" />
+            </label>
+
+            <fieldset className="onboarding-species-field">
+              <legend>Species</legend>
+              <div className="pet-choice-row two-options">
+                <button className={petDraft.species === "Cat" ? "selected" : ""} type="button" onClick={() => setPetDraft((current) => ({ ...current, species: "Cat" }))}><Cat aria-hidden="true" />Cat</button>
+                <button className={petDraft.species === "Dog" ? "selected" : ""} type="button" onClick={() => setPetDraft((current) => ({ ...current, species: "Dog" }))}><Dog aria-hidden="true" />Dog</button>
+              </div>
+            </fieldset>
+
+            <label className="onboarding-breed-field">
+              <span>Breed</span>
+              <input value={petDraft.breed} onChange={(event) => setPetDraft((current) => ({ ...current, breed: event.target.value }))} placeholder={petDraft.species === "Dog" ? "Golden retriever" : "British shorthair"} />
+            </label>
+
+            <fieldset className="onboarding-sex-field">
+              <legend>Sex</legend>
+              <div className="pet-choice-row two-options">
+                <button className={petDraft.sex === "male" ? "selected boy-option" : "boy-option"} type="button" onClick={() => setPetDraft((current) => ({ ...current, sex: "male" }))}><Mars aria-hidden="true" />Boy</button>
+                <button className={petDraft.sex === "female" ? "selected girl-option" : "girl-option"} type="button" onClick={() => setPetDraft((current) => ({ ...current, sex: "female" }))}><Venus aria-hidden="true" />Girl</button>
+              </div>
+            </fieldset>
+
+            <label className="onboarding-birthday-field">
+              <span>Birthday</span>
+              <input aria-label="Birthday" max={todayIso()} type="date" value={petDraft.birthday} onChange={(event) => setPetDraft((current) => ({ ...current, birthday: event.target.value }))} />
+            </label>
+
+            <label className="onboarding-home-field">
+              <span>Day they came home</span>
+              <input max={todayIso()} type="date" value={petDraft.adoption} onChange={(event) => setPetDraft((current) => ({ ...current, adoption: event.target.value }))} />
+            </label>
+
+            <label className="onboarding-weight-field">
+              <span>Weight</span>
+              <span className="pet-weight-control"><input inputMode="decimal" min="0" step="0.1" type="number" value={petDraft.weight} onChange={(event) => setPetDraft((current) => ({ ...current, weight: event.target.value }))} placeholder="0.0" /><strong>lb</strong></span>
+            </label>
+
+            <label className="onboarding-notes-field">
+              <span>Notes</span>
+              <textarea value={petDraft.note} onChange={(event) => setPetDraft((current) => ({ ...current, note: event.target.value }))} placeholder="Personality, care notes, or routines" />
+            </label>
+
+            {(message || statusMessage) && <p className="onboarding-message" role="status">{message || statusMessage}</p>}
+            <button className="primary-button onboarding-save" disabled={photoUploading} type="submit">{photoUploading ? "Uploading..." : "Save profile"}</button>
+          </form>
+        </section>
+      </section>
+    </main>
+  );
+}
+
 function HomeView({
   pets,
   reminders,
   selectedPet,
-  draft,
-  setDraft,
   switchPet,
   completeReminder,
-  addReminder,
   setToast,
   openPetDetail,
   openPage,
@@ -407,7 +525,7 @@ function HomeView({
           <button className="secondary-button" type="button" onClick={() => openPage("Memories")}>
             Go to memories
           </button>
-          <button className="primary-button" type="button" onClick={() => openPage("Health & Care")}>
+          <button className="primary-button" type="button" onClick={() => openPage("Care Planner")}>
             Add care reminder
           </button>
         </div>
@@ -461,6 +579,7 @@ function HomeView({
                         <div>
                           <h3>{petName(pets, item.petId)} - {item.type}</h3>
                           <p>{formatCareDate(item.due)} · {item.note}</p>
+                          {item.sourceType === "medical_record" && <span className="record-source-badge">From Medical Record</span>}
                         </div>
                         <StatusPill status={reminderStatus(item.due)} />
                       </div>
@@ -491,6 +610,7 @@ function HomeView({
                         <div>
                           <h3>{petName(pets, item.petId)} - {item.type}</h3>
                           <p>{formatCareDate(item.due)} · {item.note}</p>
+                          {item.sourceType === "medical_record" && <span className="record-source-badge">From Medical Record</span>}
                         </div>
                         <StatusPill status="overdue" />
                       </div>
@@ -503,41 +623,6 @@ function HomeView({
             </div>
           </div>
 
-          <form className="quick-capture" onSubmit={addReminder}>
-            <label>
-              Pet
-              <select
-                value={draft.petId}
-                onChange={(event) => setDraft((current) => ({ ...current, petId: event.target.value }))}
-              >
-                {pets.map((pet) => (
-                  <option key={pet.id} value={pet.id}>
-                    {pet.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Care item
-              <input
-                placeholder="Add a vaccine, grooming, or medicine note"
-                value={draft.title}
-                onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))}
-              />
-            </label>
-            <label>
-              Due date
-              <input
-                min={tomorrowIso()}
-                type="date"
-                value={draft.due}
-                onChange={(event) => setDraft((current) => ({ ...current, due: event.target.value }))}
-              />
-            </label>
-            <button className="primary-button" type="submit">
-              Save
-            </button>
-          </form>
         </section>
 
         <section className="home-overview">
@@ -681,6 +766,10 @@ function MyPetsView({
                       <dd>{pet.birthday ? formatCareDate(pet.birthday) : "Not set"}</dd>
                     </div>
                     <div>
+                      <dt>Sex</dt>
+                      <dd>{pet.sex === "male" ? "Boy" : pet.sex === "female" ? "Girl" : "Not set"}</dd>
+                    </div>
+                    <div>
                       <dt>Adoption day</dt>
                       <dd>{pet.adoption ? formatCareDate(pet.adoption) : "Not set"}</dd>
                     </div>
@@ -695,7 +784,7 @@ function MyPetsView({
                   </dl>
 
                   <div className="pet-module-links" aria-label={`${pet.name} module links`}>
-                    <button type="button" onClick={() => openPage("Health & Care")}>
+                    <button type="button" onClick={() => openPage("Care Planner")}>
                       <strong>{selectedRecords.length}</strong>
                       <span>Care reminders</span>
                     </button>
@@ -739,76 +828,66 @@ function MyPetsView({
               </button>
             </div>
 
-            <form className="pet-form" onSubmit={savePet}>
-              <label>
-                Name
-                <input
-                  value={petDraft.name}
-                  onChange={(event) => setPetDraft((current) => ({ ...current, name: event.target.value }))}
-                  placeholder="Pet name"
-                />
+            <form className="pet-form pet-profile-form" onSubmit={savePet}>
+              <div className="pet-photo-field">
+                <label className={petDraft.image ? "pet-photo-picker has-image" : "pet-photo-picker"}>
+                  <input accept="image/jpeg,image/png,image/gif,image/webp" disabled={photoUploading} type="file" onChange={uploadPetPhoto} />
+                  {petDraft.image ? (
+                    <img alt="Pet profile preview" src={petDraft.image} />
+                  ) : (
+                    <><PawPrint aria-hidden="true" /><strong>{photoUploading ? "Uploading..." : "Add photo"}</strong></>
+                  )}
+                </label>
+                <small>{petDraft.photoName || "JPG or PNG, up to 5 MB"}</small>
+              </div>
+
+              <label className="pet-name-field">
+                <span>Name</span>
+                <input autoFocus={formMode === "add"} value={petDraft.name} onChange={(event) => setPetDraft((current) => ({ ...current, name: event.target.value }))} placeholder="Pet name" />
               </label>
-              <label>
-                Breed
-                <input
-                  value={petDraft.breed}
-                  onChange={(event) => setPetDraft((current) => ({ ...current, breed: event.target.value }))}
-                  placeholder="Breed"
-                />
+
+              <fieldset className="pet-choice-field species-field">
+                <legend>Species</legend>
+                <div className="pet-choice-row two-options">
+                  <button className={petDraft.species === "Cat" ? "selected" : ""} type="button" onClick={() => setPetDraft((current) => ({ ...current, species: "Cat" }))}><Cat aria-hidden="true" />Cat</button>
+                  <button className={petDraft.species === "Dog" ? "selected" : ""} type="button" onClick={() => setPetDraft((current) => ({ ...current, species: "Dog" }))}><Dog aria-hidden="true" />Dog</button>
+                </div>
+              </fieldset>
+
+              <label className="pet-breed-field">
+                <span>Breed</span>
+                <input value={petDraft.breed} onChange={(event) => setPetDraft((current) => ({ ...current, breed: event.target.value }))} placeholder={petDraft.species === "Dog" ? "Golden retriever" : "British shorthair"} />
               </label>
-              <label>
-                Species
-                <input
-                  value={petDraft.species}
-                  onChange={(event) => setPetDraft((current) => ({ ...current, species: event.target.value }))}
-                  placeholder="Cat, dog, rabbit..."
-                />
+
+              <fieldset className="pet-choice-field sex-field">
+                <legend>Sex</legend>
+                <div className="pet-choice-row two-options">
+                  <button className={petDraft.sex === "male" ? "selected boy-option" : "boy-option"} type="button" onClick={() => setPetDraft((current) => ({ ...current, sex: "male" }))}><Mars aria-hidden="true" />Boy</button>
+                  <button className={petDraft.sex === "female" ? "selected girl-option" : "girl-option"} type="button" onClick={() => setPetDraft((current) => ({ ...current, sex: "female" }))}><Venus aria-hidden="true" />Girl</button>
+                </div>
+              </fieldset>
+
+              <div className="pet-date-card">
+                <div className="pet-date-heading"><span>Birthday</span></div>
+                <input aria-label="Birthday" max={todayIso()} type="date" value={petDraft.birthday} onChange={(event) => setPetDraft((current) => ({ ...current, birthday: event.target.value }))} />
+              </div>
+
+              <label className="pet-home-date-field">
+                <span>Day they came home</span>
+                <input max={todayIso()} type="date" value={petDraft.adoption} onChange={(event) => setPetDraft((current) => ({ ...current, adoption: event.target.value }))} />
               </label>
-              <label>
-                Birthday
-                <input
-                  type="date"
-                  value={petDraft.birthday}
-                  onChange={(event) => setPetDraft((current) => ({ ...current, birthday: event.target.value }))}
-                />
+
+              <label className="pet-weight-field">
+                <span>Weight</span>
+                <span className="pet-weight-control"><input inputMode="decimal" min="0" step="0.1" type="number" value={petDraft.weight} onChange={(event) => setPetDraft((current) => ({ ...current, weight: event.target.value }))} placeholder="8.4" /><strong>lb</strong></span>
               </label>
-              <label>
-                Adoption day
-                <input
-                  type="date"
-                  value={petDraft.adoption}
-                  onChange={(event) => setPetDraft((current) => ({ ...current, adoption: event.target.value }))}
-                />
+
+              <label className="pet-notes-field">
+                <span>Notes</span>
+                <textarea value={petDraft.note} onChange={(event) => setPetDraft((current) => ({ ...current, note: event.target.value }))} placeholder="Personality, care notes, or routines" />
               </label>
-              <label>
-                Weight
-                <input
-                  value={petDraft.weight}
-                  onChange={(event) => setPetDraft((current) => ({ ...current, weight: event.target.value }))}
-                  placeholder="8.4 lb"
-                />
-              </label>
-              <label className="wide-field">
-                Notes
-                <textarea
-                  value={petDraft.note}
-                  onChange={(event) => setPetDraft((current) => ({ ...current, note: event.target.value }))}
-                  placeholder="Personality, care notes, or routines"
-                />
-              </label>
-              <label className="wide-field">
-                Photo from this device (optional)
-                <input
-                  accept="image/jpeg,image/png,image/gif,image/webp"
-                  disabled={photoUploading}
-                  type="file"
-                  onChange={uploadPetPhoto}
-                />
-                <small>{photoUploading ? "Uploading photo..." : petDraft.photoName || (petDraft.image?.startsWith("http") ? "A saved photo is attached." : "JPG, PNG, GIF, or WebP; maximum 5 MB.")}</small>
-              </label>
-              <button className="primary-button wide-field" disabled={photoUploading} type="submit">
-                {photoUploading ? "Uploading..." : "Save profile"}
-              </button>
+
+              <button className="primary-button pet-save-profile" disabled={photoUploading} type="submit">{photoUploading ? "Uploading..." : "Save profile"}</button>
             </form>
           </section>
         )}
@@ -837,9 +916,9 @@ function HealthCareView({
 }) {
   const [petFilter, setPetFilter] = useState("All");
   const [historyOpen, setHistoryOpen] = useState(false);
-  const recordTypes = ["All", "Vaccine", "Deworming", "Checkup", "Medication", "Weight", "Other"];
+  const recordTypes = ["All", "Vaccine", "Deworming", "Checkup", "Medication", "Weight", "Custom"];
   const filteredRecords = records
-    .filter((record) => (filterType === "All" || record.type === filterType) && (petFilter === "All" || record.petId === petFilter))
+    .filter((record) => (filterType === "All" || record.category === filterType) && (petFilter === "All" || record.petId === petFilter))
     .slice()
     .sort((a, b) => {
       const first = dateValue(a.due);
@@ -852,7 +931,7 @@ function HealthCareView({
       <header className="topbar health-topbar">
         <div>
           <span className="eyebrow">Health tracker</span>
-          <h1>Health & Care</h1>
+          <h1>Care Planner</h1>
           <p>Plan vaccines, checkups, medication, and everyday care before they are due.</p>
         </div>
       </header>
@@ -882,6 +961,12 @@ function HealthCareView({
                 {recordTypes.filter((type) => type !== "All").map((type) => <option key={type}>{type}</option>)}
               </select>
             </label>
+            {healthDraft.type === "Custom" && (
+              <label className="care-custom-type">
+                <span>Custom care type</span>
+                <input autoFocus maxLength={100} value={healthDraft.customType} onChange={(event) => setHealthDraft((current) => ({ ...current, customType: event.target.value }))} placeholder="For example: Grooming or Nail trim" />
+              </label>
+            )}
             <label className="care-field feature-field">
               <span className="care-field-icon" aria-hidden="true"><CalendarDays /></span>
               <span>Due date</span>
@@ -954,7 +1039,7 @@ function HealthCareView({
                   <span className="care-type-cell">{record.type}</span>
                   <span><strong>{formatCareDate(record.due)}</strong><small>{Math.max(0, Math.ceil((dateValue(record.due) - TODAY) / 86400000))} days</small></span>
                   <span>{record.repeat}</span>
-                  <span className="care-row-note">{record.note || "No notes"}</span>
+                  <span className="care-row-note">{record.note || "No notes"}{record.sourceType === "medical_record" && <small className="record-source-badge">From Medical Record</small>}</span>
                   <StatusPill status={reminderStatus(record.due)} />
                   <div className="care-row-actions">
                     <button className="mark-done-button" type="button" onClick={() => completeReminder(record.id)}>✓ Mark done</button>
@@ -1010,7 +1095,7 @@ function MemoryTimelineView({
         <div>
           <span className="eyebrow">Memory timeline</span>
           <h1>Memories</h1>
-          <p>Keep the story simple: when it happened, what the scene felt like, and the photo that brings it back.</p>
+          <p>Save a title, date, and photo for the moments you want to remember.</p>
         </div>
         <div className="actions">
           <button className="primary-button" type="button" onClick={startAddMemory}>
@@ -1064,22 +1149,6 @@ function MemoryTimelineView({
                 />
               </label>
               <label className="wide-field">
-                Scene
-                <input
-                  value={memoryDraft.scene}
-                  onChange={(event) => setMemoryDraft((current) => ({ ...current, scene: event.target.value }))}
-                  placeholder="Sunny kitchen, evening walk, birthday morning"
-                />
-              </label>
-              <label className="wide-field">
-                Description
-                <textarea
-                  value={memoryDraft.description}
-                  onChange={(event) => setMemoryDraft((current) => ({ ...current, description: event.target.value }))}
-                  placeholder="What happened in this memory?"
-                />
-              </label>
-              <label className="wide-field">
                 Photo from this device (optional)
                 <input
                   accept="image/jpeg,image/png,image/gif,image/webp"
@@ -1112,6 +1181,247 @@ function MemoryTimelineView({
               <img alt={`${memory.title} memory`} src={memory.image} />
             </article>
           ))}
+        </div>
+      </section>
+    </>
+  );
+}
+
+function MedicalRecordsView({ pets, records, refreshData, setToast }) {
+  const [draft, setDraft] = useState(emptyMedicalRecordDraft);
+  const [documentFile, setDocumentFile] = useState(null);
+  const [pendingRecord, setPendingRecord] = useState(null);
+  const [reviewData, setReviewData] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [fileInputKey, setFileInputKey] = useState(0);
+
+  useEffect(() => {
+    setDraft((current) => ({
+      ...current,
+      petId: pets.some((pet) => pet.id === current.petId) ? current.petId : pets[0]?.id ?? "",
+    }));
+  }, [pets]);
+
+  async function uploadRecord(event) {
+    event.preventDefault();
+    if (!draft.petId || !draft.title.trim() || (!documentFile && !draft.sourceText.trim())) {
+      setToast("Choose a pet, add a title, and upload a document or paste the veterinary instructions.");
+      return;
+    }
+    const formData = new FormData();
+    formData.append("pet_id", draft.petId);
+    formData.append("title", draft.title.trim());
+    formData.append("visit_date", draft.visitDate);
+    if (documentFile) formData.append("document", documentFile);
+    if (draft.sourceText.trim()) formData.append("source_text", draft.sourceText.trim());
+
+    setSubmitting(true);
+    try {
+      const record = await api.medicalRecords.create(formData);
+      setPendingRecord(record);
+      setReviewData(record.extracted_data);
+      await refreshData();
+      setToast("Extraction draft ready. Review every item before creating reminders.");
+    } catch (error) {
+      const detail = error.details ? Object.values(error.details)[0] : null;
+      setToast(detail || error.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function openDraft(recordId) {
+    try {
+      const record = await api.medicalRecords.get(recordId);
+      setPendingRecord(record);
+      setReviewData(record.extracted_data);
+      setToast("Medical record extraction opened for review.");
+    } catch (error) {
+      setToast(error.message);
+    }
+  }
+
+  function updateMedication(index, field, value) {
+    setReviewData((current) => ({
+      ...current,
+      medications: current.medications.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item),
+    }));
+  }
+
+  async function confirmExtraction() {
+    if (!pendingRecord || !reviewData) return;
+    setSubmitting(true);
+    try {
+      const result = await api.medicalRecords.confirm(pendingRecord.id, reviewData);
+      await refreshData();
+      setPendingRecord(null);
+      setReviewData(null);
+      setDocumentFile(null);
+      setDraft({ ...emptyMedicalRecordDraft, petId: pets[0]?.id ?? "" });
+      setFileInputKey((current) => current + 1);
+      setToast(`${result.created_reminders.length} reminders created in the existing Care Reminder system.`);
+    } catch (error) {
+      const detail = error.details ? Object.values(error.details)[0] : null;
+      setToast(detail || error.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function deleteRecord(record) {
+    if (!window.confirm(`Delete “${record.title}”? The original medical record will be removed.`)) return;
+    const deleteIncomplete = record.incomplete_reminder_count > 0
+      ? window.confirm(`This record has ${record.incomplete_reminder_count} incomplete reminders. Delete those reminders too?`)
+      : false;
+    try {
+      await api.medicalRecords.remove(record.id, deleteIncomplete);
+      if (pendingRecord?.id === record.id) {
+        setPendingRecord(null);
+        setReviewData(null);
+      }
+      await refreshData();
+      setToast(deleteIncomplete ? "Medical record and its incomplete reminders deleted." : "Medical record deleted. Existing reminder history was preserved.");
+    } catch (error) {
+      setToast(error.message);
+    }
+  }
+
+  async function openOriginalDocument(record) {
+    try {
+      const blob = await api.medicalRecords.document(record.id);
+      const objectUrl = URL.createObjectURL(blob);
+      window.open(objectUrl, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+      setToast("Original medical record opened in a new tab.");
+    } catch (error) {
+      setToast(error.message);
+    }
+  }
+
+  const extractedCount = reviewData
+    ? (reviewData.medications?.length ?? 0) + (reviewData.follow_up ? 1 : 0)
+    : 0;
+
+  return (
+    <>
+      <header className="topbar medical-records-topbar">
+        <div>
+          <span className="eyebrow">Veterinary documents</span>
+          <h1>Medical Records</h1>
+          <p>Turn confirmed medication and follow-up details into the same reminders already used across PawRise.</p>
+        </div>
+      </header>
+
+      <section className="medical-records-layout">
+        <section className="medical-upload-panel">
+          <div className="medical-section-heading">
+            <span className="medical-icon"><Upload aria-hidden="true" /></span>
+            <div><h2>Add medical record</h2><p>Nothing becomes a reminder until you review and confirm it.</p></div>
+          </div>
+          <form className="medical-upload-form" onSubmit={uploadRecord}>
+            <label>
+              Pet
+              <select value={draft.petId} onChange={(event) => setDraft((current) => ({ ...current, petId: event.target.value }))}>
+                {pets.map((pet) => <option key={pet.id} value={pet.id}>{pet.name}</option>)}
+              </select>
+            </label>
+            <label>
+              Record title
+              <input value={draft.title} maxLength={150} placeholder="Spay surgery discharge" onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} />
+            </label>
+            <label>
+              Visit date
+              <input type="date" max={todayIso()} value={draft.visitDate} onChange={(event) => setDraft((current) => ({ ...current, visitDate: event.target.value }))} />
+            </label>
+            <label className="medical-file-field">
+              Veterinary document
+              <input key={fileInputKey} type="file" accept=".pdf,.txt,.jpg,.jpeg,.png,.webp" onChange={(event) => setDocumentFile(event.target.files?.[0] ?? null)} />
+              <small>PDF and TXT can be read locally. For a scanned image, paste its instructions below.</small>
+            </label>
+            <label className="medical-source-field">
+              Veterinary instructions
+              <textarea value={draft.sourceText} onChange={(event) => setDraft((current) => ({ ...current, sourceText: event.target.value }))} placeholder="Give Carprofen 25 mg once daily with food for 3 days. Follow-up appointment on August 19, 2026." />
+              <small>Optional for readable PDF/TXT files; useful for a reliable classroom demo.</small>
+            </label>
+            <button className="primary-button medical-extract-button" disabled={submitting || !pets.length} type="submit">
+              <Sparkles aria-hidden="true" />{submitting ? "Extracting..." : "Extract for review"}
+            </button>
+          </form>
+        </section>
+
+        <section className="medical-review-panel">
+          <div className="medical-section-heading">
+            <span className="medical-icon"><Sparkles aria-hidden="true" /></span>
+            <div><h2>Review extraction</h2><p>Compare the draft with the original instructions and correct any errors.</p></div>
+          </div>
+          {pendingRecord && reviewData ? (
+            <div className="extraction-review">
+              <div className="review-summary">
+                <div><span className="eyebrow">Draft only</span><h3>{pendingRecord.title}</h3><p>{pendingRecord.pet_name} · {extractedCount} extracted items</p></div>
+                <span className="draft-status">Needs confirmation</span>
+              </div>
+
+              <div className="review-group">
+                <h3>Medication</h3>
+                {(reviewData.medications ?? []).length ? reviewData.medications.map((item, index) => (
+                  <article className={!item.include ? "review-item excluded" : "review-item"} key={`medication-${index}`}>
+                    <label className="include-control"><input type="checkbox" checked={item.include} onChange={(event) => updateMedication(index, "include", event.target.checked)} />Include</label>
+                    <div className="review-fields medication-fields">
+                      <label>Name<input value={item.name} onChange={(event) => updateMedication(index, "name", event.target.value)} /></label>
+                      <label className={!item.dose.trim() ? "missing-review-value" : ""}>Dose (required)<input value={item.dose} placeholder="Enter the veterinarian's dose" onChange={(event) => updateMedication(index, "dose", event.target.value)} />{!item.dose.trim() && <small>Not found in the source. Check the original document and enter it here.</small>}</label>
+                      <label>Frequency<input value={item.frequency} onChange={(event) => updateMedication(index, "frequency", event.target.value)} /></label>
+                      <label>Start date<input min={todayIso()} type="date" value={item.start_date} onChange={(event) => updateMedication(index, "start_date", event.target.value)} /></label>
+                      <label className={item.duration_days ? "" : "missing-review-value"}>Days (required)<input min="1" max="60" type="number" value={item.duration_days ?? ""} placeholder="Enter days" onChange={(event) => updateMedication(index, "duration_days", event.target.value === "" ? "" : Number(event.target.value))} />{!item.duration_days && <small>Not found in the source. Enter the prescribed duration.</small>}</label>
+                      <label className="wide-field">Instructions<input value={item.instructions} onChange={(event) => updateMedication(index, "instructions", event.target.value)} /></label>
+                    </div>
+                    <p className="source-quote"><strong>Source:</strong> {item.source_text}</p>
+                  </article>
+                )) : <p className="empty-care-copy">No medication was detected. Paste clearer instructions or add reminders manually.</p>}
+              </div>
+
+              {reviewData.follow_up && (
+                <div className="review-group">
+                  <h3>Follow-up</h3>
+                  <article className={!reviewData.follow_up.include ? "review-item excluded" : "review-item"}>
+                    <label className="include-control"><input type="checkbox" checked={reviewData.follow_up.include} onChange={(event) => setReviewData((current) => ({ ...current, follow_up: { ...current.follow_up, include: event.target.checked } }))} />Include</label>
+                    <div className="review-fields">
+                      <label>Date<input min={todayIso()} type="date" value={reviewData.follow_up.date} onChange={(event) => setReviewData((current) => ({ ...current, follow_up: { ...current.follow_up, date: event.target.value } }))} /></label>
+                      <label>Clinic<input value={reviewData.follow_up.clinic} placeholder="Optional" onChange={(event) => setReviewData((current) => ({ ...current, follow_up: { ...current.follow_up, clinic: event.target.value } }))} /></label>
+                    </div>
+                    <p className="source-quote"><strong>Source:</strong> {reviewData.follow_up.source_text}</p>
+                  </article>
+                </div>
+              )}
+
+              <div className="review-safety-note"><ShieldCheck aria-hidden="true" /><p>PawRise organizes the veterinarian’s words. It does not diagnose, calculate a dose, or add treatment advice.</p></div>
+              <button className="primary-button confirm-extraction-button" disabled={submitting} type="button" onClick={confirmExtraction}>{submitting ? "Creating reminders..." : "Confirm and create reminders"}</button>
+            </div>
+          ) : (
+            <div className="medical-review-empty"><FileText aria-hidden="true" /><h3>No draft open</h3><p>Upload a record or reopen an unconfirmed draft from the list below.</p></div>
+          )}
+        </section>
+      </section>
+
+      <section className="medical-record-list-panel">
+        <div className="medical-section-heading">
+          <span className="medical-icon"><FileText aria-hidden="true" /></span>
+          <div><h2>Saved medical records</h2><p>Medical records are the source; linked reminders continue through the existing care workflow.</p></div>
+        </div>
+        <div className="medical-record-list">
+          {records.map((record) => (
+            <article className="medical-record-row" key={record.id}>
+              <div className="medical-record-mark"><FileText aria-hidden="true" /></div>
+              <div className="medical-record-copy"><span className="eyebrow">{record.pet_name}</span><h3>{record.title}</h3><p>{record.visit_date ? formatCareDate(record.visit_date) : "Visit date not set"} · {record.original_filename || "Pasted instructions"}</p></div>
+              <div className="medical-record-stats"><strong>{record.generated_reminder_count}</strong><span>linked reminders</span></div>
+              <span className={`record-status ${record.status}`}>{record.status === "confirmed" ? "Confirmed" : "Needs review"}</span>
+              <div className="medical-record-actions">
+                {record.document_url && <button className="secondary-button" type="button" onClick={() => openOriginalDocument(record)}>View original</button>}
+                {record.status === "draft" && <button className="secondary-button" type="button" onClick={() => openDraft(record.id)}>Review</button>}
+                <button className="icon-text-button danger" type="button" onClick={() => deleteRecord(record)}><Trash2 aria-hidden="true" />Delete</button>
+              </div>
+            </article>
+          ))}
+          {!records.length && <div className="medical-review-empty"><FileText aria-hidden="true" /><h3>No medical records yet</h3><p>Add the first veterinary document above.</p></div>}
         </div>
       </section>
     </>
@@ -1172,7 +1482,7 @@ function SettingsView({ onLogout, setToast, user }) {
           <div className="account-row">
             <div className="account-avatar">{user.name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase()}</div>
             <div className="account-copy"><strong>{user.name}</strong><span>{user.email}</span></div>
-            <button className="secondary-button" type="button" onClick={() => setToast("Profile editing is ready for account integration.")}>Edit profile</button>
+            <button className="secondary-button" disabled type="button">Coming soon</button>
           </div>
         </section>
 
@@ -1183,8 +1493,8 @@ function SettingsView({ onLogout, setToast, user }) {
           </div>
           <div className="settings-list">
             <label className="settings-toggle-row">
-              <span><strong>Email reminders</strong><small>Receive upcoming care reminders by email.</small></span>
-              <input checked={emailReminders} onChange={(event) => setEmailReminders(event.target.checked)} type="checkbox" />
+              <span><strong>Email reminders</strong><small>Coming soon — email reminders are planned for a future update.</small></span>
+              <input aria-label="Email reminders coming soon" checked={emailReminders} disabled type="checkbox" />
             </label>
             <label className="settings-control-row">
               <span><strong>Remind me</strong><small>Set the default notice before a care task is due.</small></span>
@@ -1193,8 +1503,8 @@ function SettingsView({ onLogout, setToast, user }) {
               </select>
             </label>
             <label className="settings-toggle-row">
-              <span><strong>Overdue alerts</strong><small>Keep overdue care visible until it is completed.</small></span>
-              <input checked={overdueAlerts} onChange={(event) => setOverdueAlerts(event.target.checked)} type="checkbox" />
+              <span><strong>Overdue alerts</strong><small>Coming soon — alert preferences will be available in a future update.</small></span>
+              <input aria-label="Overdue alerts coming soon" checked={overdueAlerts} disabled type="checkbox" />
             </label>
           </div>
           <button className="primary-button" disabled={saving} type="button" onClick={saveSettings}>
@@ -1209,7 +1519,7 @@ function SettingsView({ onLogout, setToast, user }) {
           </div>
           <div className="settings-action-row">
             <span><strong>Export PawRise data</strong><small>Download pet profiles, care reminders, and memories.</small></span>
-            <button className="secondary-button settings-button-with-icon" type="button" onClick={() => setToast("Your PawRise export is being prepared.")}><Download aria-hidden="true" />Export data</button>
+            <button className="secondary-button settings-button-with-icon" disabled type="button"><Download aria-hidden="true" />Coming soon</button>
           </div>
         </section>
 
@@ -1241,6 +1551,7 @@ function PlaceholderPage({ page, openPage }) {
 export function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isRestoring, setIsRestoring] = useState(hasAccessToken());
+  const [showPetOnboarding, setShowPetOnboarding] = useState(false);
   const [user, setUser] = useState({ name: "", email: "" });
   const [activePage, setActivePage] = useState("Home");
   const [pets, setPets] = useState([]);
@@ -1249,7 +1560,7 @@ export function App() {
   const [reminders, setReminders] = useState([]);
   const [careHistory, setCareHistory] = useState([]);
   const [memories, setMemories] = useState([]);
-  const [draft, setDraft] = useState({ petId: "", title: "", due: tomorrowIso() });
+  const [medicalRecords, setMedicalRecords] = useState([]);
   const [formMode, setFormMode] = useState(null);
   const [petDraft, setPetDraft] = useState(emptyPetDraft);
   const [editingPetId, setEditingPetId] = useState(null);
@@ -1262,12 +1573,19 @@ export function App() {
   const [memoryDraft, setMemoryDraft] = useState(emptyMemoryDraft);
   const [toast, setToast] = useState("");
 
+  useEffect(() => {
+    if (!toast) return undefined;
+    const timeoutId = window.setTimeout(() => setToast(""), 3000);
+    return () => window.clearTimeout(timeoutId);
+  }, [toast]);
+
   async function loadAllData() {
-    const [petData, reminderData, historyData, memoryData] = await Promise.all([
+    const [petData, reminderData, historyData, memoryData, medicalRecordData] = await Promise.all([
       api.pets.list(),
       api.reminders.list(),
       api.reminders.history(),
       api.memories.list(),
+      api.medicalRecords.list(),
     ]);
     const nextPets = petData.map(normalizePet);
     const defaultPetId = nextPets[0]?.id ?? "";
@@ -1275,9 +1593,9 @@ export function App() {
     setReminders(reminderData.map(normalizeReminder));
     setCareHistory(historyData.map(normalizeReminder));
     setMemories(memoryData.map(normalizeMemory));
+    setMedicalRecords(medicalRecordData);
     setSelectedPetId((current) => nextPets.some((pet) => pet.id === current) ? current : defaultPetId || null);
     setSelectedPet((current) => current === "all" || nextPets.some((pet) => pet.id === current) ? current : "all");
-    setDraft((current) => ({ ...current, petId: nextPets.some((pet) => pet.id === current.petId) ? current.petId : defaultPetId }));
     setHealthDraft((current) => ({ ...current, petId: nextPets.some((pet) => pet.id === current.petId) ? current.petId : defaultPetId }));
   }
 
@@ -1322,7 +1640,7 @@ export function App() {
 
   function openPage(page) {
     setActivePage(page);
-    setToast(["My Pets", "Health & Care", "Memories", "Settings"].includes(page) ? `${page} opened.` : `${page} module is ready to build next.`);
+    setToast(["My Pets", "Care Planner", "Medical Records", "Memories", "Settings"].includes(page) ? `${page} opened.` : `${page} module is ready to build next.`);
   }
 
   async function authenticate(credentials) {
@@ -1333,8 +1651,10 @@ export function App() {
     setUser({ name: result.user.full_name, email: result.user.email });
     await loadAllData();
     setIsAuthenticated(true);
+    setPetDraft({ ...emptyPetDraft, image: "" });
+    setShowPetOnboarding(credentials.mode === "signup");
     setActivePage("Home");
-    setToast("Welcome to PawRise.");
+    setToast(credentials.mode === "signup" ? "Account created." : "Welcome to PawRise.");
   }
 
   function logout() {
@@ -1345,6 +1665,8 @@ export function App() {
     setReminders([]);
     setCareHistory([]);
     setMemories([]);
+    setMedicalRecords([]);
+    setShowPetOnboarding(false);
     setActivePage("Home");
     setToast("");
   }
@@ -1368,35 +1690,9 @@ export function App() {
     }
   }
 
-  async function addReminder(event) {
-    event.preventDefault();
-    if (!draft.petId || !draft.title.trim() || !draft.due) {
-      setToast("Add a care title before saving.");
-      return;
-    }
-    const knownType = ["vaccine", "deworming", "checkup", "medication", "weight"].includes(draft.title.trim().toLowerCase())
-      ? draft.title.trim().toLowerCase()
-      : "other";
-    try {
-      await api.reminders.create({
-        pet_id: Number(draft.petId),
-        care_type: knownType,
-        due_date: draft.due,
-        repeat_rule: "none",
-        notes: knownType === "other" ? draft.title.trim() : "Added from quick capture.",
-      });
-      await loadAllData();
-      setDraft((current) => ({ petId: current.petId, title: "", due: tomorrowIso() }));
-      setToast("New reminder saved to the database.");
-    } catch (error) {
-      setToast(error.message);
-    }
-  }
-
   function switchPet(id) {
     setSelectedPet(id);
     if (id !== "all") {
-      setDraft((current) => ({ ...current, petId: id }));
       setSelectedPetId(id);
     }
     setToast(id === "all" ? "Showing the whole household." : `Showing ${petName(pets, id)}.`);
@@ -1444,6 +1740,27 @@ export function App() {
     }
   }
 
+  async function saveOnboardingPet(event) {
+    event.preventDefault();
+    if (!petDraft.name.trim() || !petDraft.species.trim()) {
+      setToast("Name and species are required.");
+      return;
+    }
+    try {
+      const saved = await api.pets.create(petPayload(petDraft));
+      await loadAllData();
+      setSelectedPetId(String(saved.id));
+      setSelectedPet(String(saved.id));
+      setPetDraft(emptyPetDraft);
+      setShowPetOnboarding(false);
+      setActivePage("Home");
+      setToast(`${saved.name} is ready in PawRise.`);
+    } catch (error) {
+      const detail = error.details ? Object.values(error.details)[0] : null;
+      setToast(detail || error.message);
+    }
+  }
+
   async function deletePet(id) {
     const target = petName(pets, id);
     if (!window.confirm(`Delete ${target}'s profile? This cannot be undone in this prototype.`)) {
@@ -1468,7 +1785,7 @@ export function App() {
   function startEditHealth(record) {
     setHealthFormMode("edit");
     setEditingHealthId(record.id);
-    setHealthDraft({ ...record });
+    setHealthDraft({ ...record, type: record.category, customType: record.customType || "" });
     setToast(`Editing ${record.type} reminder.`);
   }
 
@@ -1483,6 +1800,10 @@ export function App() {
     event.preventDefault();
     if (!healthDraft.petId || !healthDraft.type || !healthDraft.due) {
       setToast("Pet, care type, and due date are required.");
+      return;
+    }
+    if (healthDraft.type === "Custom" && !healthDraft.customType.trim()) {
+      setToast("Enter a name for the custom care type.");
       return;
     }
     if (dateValue(healthDraft.due) <= TODAY) {
@@ -1550,8 +1871,8 @@ export function App() {
         title: memoryDraft.title.trim(),
         memory_date: memoryDraft.date,
         category: "daily_moment",
-        scene: memoryDraft.scene.trim() || null,
-        description: memoryDraft.description.trim() || null,
+        scene: null,
+        description: null,
         image_url: memoryDraft.image?.startsWith("http") ? memoryDraft.image : null,
       });
       await loadAllData();
@@ -1572,6 +1893,22 @@ export function App() {
     return <AuthView onAuthenticate={authenticate} />;
   }
 
+  if (showPetOnboarding) {
+    return (
+      <PetOnboardingView
+        onSave={saveOnboardingPet}
+        onSkip={() => {
+          setShowPetOnboarding(false);
+          setActivePage("Home");
+          setToast("You can add a pet anytime from My Pets.");
+        }}
+        petDraft={petDraft}
+        setPetDraft={setPetDraft}
+        statusMessage={toast}
+      />
+    );
+  }
+
   return (
     <main className="app-shell">
       <aside className="sidebar" aria-label="Primary navigation">
@@ -1584,7 +1921,7 @@ export function App() {
         </div>
 
         <nav className="nav-list">
-          {["Home", "My Pets", "Health & Care", "Memories", "Settings"].map((item) => (
+          {["Home", "Care Planner", "Medical Records", "Memories", "My Pets", "Settings"].map((item) => (
             <button
               className={item === activePage ? "active" : ""}
               key={item}
@@ -1606,15 +1943,12 @@ export function App() {
       <section className="workspace">
         {activePage === "Home" && (
           <HomeView
-            addReminder={addReminder}
             completeReminder={completeReminder}
-            draft={draft}
             openPage={openPage}
             openPetDetail={openPetDetail}
             pets={pets}
             reminders={reminders}
             selectedPet={selectedPet}
-            setDraft={setDraft}
             setToast={setToast}
             switchPet={switchPet}
             userName={user.name}
@@ -1639,7 +1973,7 @@ export function App() {
             startEditPet={startEditPet}
           />
         )}
-        {activePage === "Health & Care" && (
+        {activePage === "Care Planner" && (
           <HealthCareView
             cancelHealthForm={cancelHealthForm}
             careHistory={careHistory}
@@ -1660,6 +1994,14 @@ export function App() {
             startEditHealth={startEditHealth}
           />
         )}
+        {activePage === "Medical Records" && (
+          <MedicalRecordsView
+            pets={pets}
+            records={medicalRecords}
+            refreshData={loadAllData}
+            setToast={setToast}
+          />
+        )}
         {activePage === "Memories" && (
           <MemoryTimelineView
             cancelMemoryForm={cancelMemoryForm}
@@ -1674,7 +2016,7 @@ export function App() {
           />
         )}
         {activePage === "Settings" && <SettingsView onLogout={logout} setToast={setToast} user={user} />}
-        {!["Home", "My Pets", "Health & Care", "Memories", "Settings"].includes(activePage) && <PlaceholderPage openPage={openPage} page={activePage} />}
+        {!["Home", "My Pets", "Care Planner", "Medical Records", "Memories", "Settings"].includes(activePage) && <PlaceholderPage openPage={openPage} page={activePage} />}
 
         {toast && (
           <div className="toast" role="status" aria-live="polite">

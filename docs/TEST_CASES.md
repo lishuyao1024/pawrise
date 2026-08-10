@@ -88,8 +88,8 @@ The automated test calculates a future date at runtime so the test remains valid
 | Test ID | Component | Scenario and input/setup | Expected result |
 |---|---|---|---|
 | SYS-01 | `GET /api/health` | Call the health endpoint with an initialized test database. | `200 OK`; response reports `pawrise-backend` and `database: connected`. |
-| DB-01 | Database schema | Inspect the database after `db.create_all()`. | Exactly five core tables exist: `users`, `pets`, `care_reminders`, `memories`, and `user_settings`. |
-| DB-02 | Database indexes | Inspect indexes on all five tables. | All seven documented custom indexes exist. |
+| DB-01 | Database schema | Inspect the database after `db.create_all()`. | Six application tables exist, including `medical_records`. |
+| DB-02 | Database indexes | Inspect indexes on all application tables. | All documented indexes exist, including Medical Records and reminder-source indexes. |
 | DB-03 | SQLite foreign keys | Execute `PRAGMA foreign_keys`. | Result is `1`; foreign-key enforcement is enabled. |
 | DB-04 | Model relationships | Insert a user, settings, pet, two linked reminders, and a memory; delete the pet and then the user. | Relationships persist; deleting the pet removes reminders and memories; deleting the user removes settings. |
 
@@ -136,6 +136,8 @@ The automated test calculates a future date at runtime so the test remains valid
 | REM-11 | Recurrence calculation | Add one month to January 31 in normal and leap years. | Unit test | Result is February 28 for 2026 and February 29 for 2024. |
 | REM-12 | Complete/update reminder | Complete a reminder, then try to complete and edit it again. | `409` | Both requests return `REMINDER_ALREADY_COMPLETED`; no duplicate next reminder is created. |
 | REM-13 | Delete/complete reminder | Attempt to delete or complete another user's reminder. | `404` | Both requests return `REMINDER_NOT_FOUND`; the record remains unchanged. |
+| REM-14 | `POST /api/reminders` | Create an `other` reminder with `custom_label = Nail trim`. | `201` | The custom label is stored and returned. |
+| REM-15 | `POST /api/reminders` | Create an `other` reminder without a custom label. | `400` | Validation requires `custom_label`. |
 
 ## 8. Memory API Test Cases
 
@@ -168,7 +170,24 @@ The automated test calculates a future date at runtime so the test remains valid
 | DASH-03 | `GET /api/dashboard?pet_id={id}` | Supply another user's pet ID. | `404` | Error code is `PET_NOT_FOUND`; private dashboard data is not exposed. |
 | DASH-04 | `GET /api/dashboard` | Call endpoint without a JWT. | `401` | Request is rejected with an authentication error. |
 
-## 11. Coverage Summary
+## 11. Upload and Medical Record Test Cases
+
+| Test ID | Endpoint | Scenario and input/setup | Expected status | Expected result |
+|---|---|---|---:|---|
+| UP-01 | `POST /api/uploads` | Upload without a JWT. | `401` | Request is rejected. |
+| UP-02 | `POST /api/uploads` | Upload an unsupported file. | `400` | Error code is `UNSUPPORTED_IMAGE`. |
+| UP-03 | `POST /api/uploads` | Upload an authenticated supported image. | `201` | Returned URL serves the stored bytes. |
+| MR-01 | Medical Record endpoints | Call list/create without a JWT. | `401` | Requests are rejected. |
+| MR-02 | `POST /api/medical-records` | Submit valid veterinary instructions for an owned pet. | `201` | A draft is stored; medication and follow-up are extracted; no reminders exist yet. |
+| MR-03 | `POST /api/medical-records` | Submit neither a readable document nor pasted text. | `400` | Validation identifies the missing document text. |
+| MR-04 | `POST /api/medical-records/{id}/confirm` | Confirm corrected medication and follow-up data. | `201` | Standard linked medication and checkup reminders are created. |
+| MR-05 | Confirmation validation | Remove a required medication dose. | `400` | Invalid draft is rejected without reminders. |
+| MR-06 | Duplicate confirmation | Confirm the same record twice. | `409` | Second request is rejected; reminders are not duplicated. |
+| MR-07 | `GET /api/medical-records` | Store records for two users. | `200` | Only the authenticated user's records are returned. |
+| MR-08 | `DELETE /api/medical-records/{id}` | Delete incomplete linked reminders after completing one reminder. | `200` | Incomplete reminders are deleted; completed Care History is preserved with a null source link. |
+| MR-09 | Record detail/delete | Attempt to access another user's record. | `404` | Private medical data is not exposed or changed. |
+
+## 12. Coverage Summary
 
 | Test area | Test count |
 |---|---:|
@@ -180,9 +199,11 @@ The automated test calculates a future date at runtime so the test remains valid
 | Memories | 8 |
 | Settings | 4 |
 | Dashboard | 4 |
-| **Total** | **50** |
+| Authenticated image uploads | 3 |
+| Medical Records | 9 |
+| **Total** | **62** |
 
-## 12. Automated Test Source Files
+## 13. Automated Test Source Files
 
 ```text
 backend/tests/test_health.py
@@ -194,4 +215,6 @@ backend/tests/test_reminders.py
 backend/tests/test_memories.py
 backend/tests/test_settings.py
 backend/tests/test_dashboard.py
+backend/tests/test_uploads.py
+backend/tests/test_medical_records.py
 ```

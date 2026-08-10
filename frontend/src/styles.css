@@ -47,6 +47,226 @@ button:disabled {
   cursor: default;
 }
 
+.pet-onboarding-page {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: 42px;
+  background: #fbf7f0;
+}
+
+.pet-onboarding-card {
+  display: grid;
+  grid-template-columns: minmax(300px, 31%) minmax(0, 1fr);
+  width: min(1280px, 100%);
+  min-height: 790px;
+  overflow: hidden;
+  border: 1px solid #d9cdbd;
+  border-radius: 24px;
+  background: #fffaf4;
+  box-shadow: 0 18px 55px rgba(91, 70, 45, 0.09);
+}
+
+.pet-onboarding-intro {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 58px 44px 48px;
+  background: #f1f2e8;
+}
+
+.pet-onboarding-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #da684f;
+  font-size: 28px;
+  font-weight: 900;
+}
+
+.pet-onboarding-brand svg {
+  width: 36px;
+  height: 36px;
+  fill: currentColor;
+  stroke-width: 1.7;
+}
+
+.account-created-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 38px;
+  padding: 10px 16px;
+  border: 1px solid #cdd0b5;
+  border-radius: 999px;
+  color: #647052;
+  background: rgba(255, 255, 255, 0.35);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.account-created-pill svg {
+  width: 20px;
+  height: 20px;
+}
+
+.pet-onboarding-intro h2 {
+  margin: 38px 0 12px;
+  font-size: clamp(32px, 3vw, 42px);
+  line-height: 1.08;
+}
+
+.pet-onboarding-intro > p {
+  max-width: 280px;
+  margin: 0;
+  color: #59554e;
+  font-size: 17px;
+  line-height: 1.55;
+}
+
+.onboarding-photo-wrap {
+  display: grid;
+  justify-items: center;
+  align-self: center;
+  gap: 14px;
+  margin-top: 44px;
+}
+
+.onboarding-photo-wrap small {
+  color: #645d54;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pet-photo-picker.onboarding-photo {
+  width: 176px;
+  height: 176px;
+  background: #fff0e9;
+}
+
+.pet-photo-picker.onboarding-photo svg {
+  width: 34px;
+  height: 34px;
+}
+
+.pet-photo-picker.onboarding-photo strong {
+  font-size: 15px;
+}
+
+.pet-onboarding-form-panel {
+  padding: 44px 52px 38px;
+}
+
+.pet-onboarding-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 26px;
+}
+
+.pet-onboarding-heading h1 {
+  margin: 0;
+  font-size: clamp(38px, 4vw, 48px);
+  line-height: 1;
+}
+
+.pet-onboarding-heading button {
+  padding: 6px 0;
+  border: 0;
+  border-bottom: 1px solid currentColor;
+  background: transparent;
+  color: #67625c;
+  font-size: 15px;
+}
+
+.onboarding-pet-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+  gap: 20px 24px;
+}
+
+.onboarding-pet-form label,
+.onboarding-pet-form fieldset {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.onboarding-pet-form label > span:first-child,
+.onboarding-pet-form legend {
+  color: #403932;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.onboarding-pet-form legend {
+  margin-bottom: 8px;
+}
+
+.onboarding-pet-form input,
+.onboarding-pet-form textarea {
+  width: 100%;
+  min-height: 54px;
+  padding: 13px 16px;
+  border: 1px solid #deceba;
+  border-radius: 13px;
+  outline: none;
+  color: var(--text);
+  background: #fffaf4;
+}
+
+.onboarding-pet-form input:focus,
+.onboarding-pet-form textarea:focus,
+.pet-onboarding-heading button:focus-visible {
+  border-color: var(--coral);
+  box-shadow: 0 0 0 3px rgba(220, 118, 94, 0.16);
+}
+
+.onboarding-name-field,
+.onboarding-notes-field,
+.onboarding-save,
+.onboarding-message {
+  grid-column: 1 / -1;
+}
+
+.onboarding-sex-field {
+  grid-column: 1;
+}
+
+.onboarding-birthday-field {
+  grid-column: 1;
+}
+
+.onboarding-home-field {
+  grid-column: 2;
+}
+
+.onboarding-weight-field {
+  grid-column: 1;
+}
+
+.onboarding-notes-field textarea {
+  min-height: 74px;
+  resize: vertical;
+}
+
+.onboarding-message {
+  margin: -8px 0 0;
+  color: var(--coral-dark);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.primary-button.onboarding-save {
+  min-height: 56px;
+  margin-top: -2px;
+  font-size: 17px;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: 260px minmax(0, 1fr);
@@ -461,16 +681,6 @@ h1 {
   font-size: 13px;
 }
 
-.quick-capture {
-  display: grid;
-  grid-template-columns: 0.65fr 1.2fr 0.7fr auto;
-  gap: 12px;
-  margin-top: 16px;
-  padding: 16px;
-  border-radius: 18px;
-  background: #f5eadc;
-}
-
 label {
   display: grid;
   gap: 7px;
@@ -862,14 +1072,223 @@ textarea {
 
 .pet-form-panel {
   grid-column: 1 / -1;
-  padding: 22px;
+  padding: 24px;
   animation: settle 360ms ease both;
 }
 
 .pet-form {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
+  grid-template-columns: 164px minmax(0, 1.1fr) minmax(0, 1.7fr);
+  gap: 22px 18px;
+  align-items: end;
+  margin-top: 24px;
+}
+
+.pet-profile-form label,
+.pet-profile-form fieldset {
+  min-width: 0;
+}
+
+.pet-profile-form label > span:first-child,
+.pet-choice-field legend,
+.pet-date-heading > span:first-child {
+  color: #67584b;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.pet-profile-form input,
+.pet-profile-form textarea,
+.pet-choice-row button {
+  border-color: #deceba;
+  background: #fffaf3;
+}
+
+.pet-profile-form input {
+  min-height: 54px;
+}
+
+.pet-photo-field {
+  grid-row: 1 / 3;
+  align-self: start;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+}
+
+.pet-photo-field small {
+  max-width: 140px;
+  color: #948170;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.pet-photo-picker {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 9px;
+  width: 132px;
+  height: 132px;
+  overflow: hidden;
+  border: 2px dashed #efb6aa;
+  border-radius: 999px;
+  color: var(--coral-dark);
+  background: var(--rose-soft);
+  cursor: pointer;
+}
+
+.pet-photo-picker input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pet-photo-picker svg {
+  width: 28px;
+  height: 28px;
+}
+
+.pet-photo-picker strong {
+  font-size: 13px;
+}
+
+.pet-photo-picker.has-image {
+  border-style: solid;
+}
+
+.pet-photo-picker img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pet-name-field {
+  grid-column: 2 / -1;
+}
+
+.pet-choice-field {
+  grid-column: 2;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.pet-choice-field legend {
+  margin-bottom: 8px;
+}
+
+.pet-choice-row {
+  display: grid;
+  gap: 10px;
+}
+
+.pet-choice-row.two-options {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pet-choice-row button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 54px;
+  border: 1px solid #deceba;
+  border-radius: 14px;
+  color: #75614f;
+  font-weight: 900;
+}
+
+.pet-choice-row button svg {
+  width: 20px;
+  height: 20px;
+}
+
+.pet-choice-row button.selected {
+  border-color: var(--coral);
+  color: var(--coral-dark);
+  background: var(--rose-soft);
+  box-shadow: inset 0 0 0 1px rgba(220, 118, 94, 0.18);
+}
+
+.pet-breed-field {
+  grid-column: 3;
+}
+
+.sex-field {
+  grid-column: 1 / 3;
+}
+
+.boy-option svg {
+  color: #4b8fd8;
+}
+
+.girl-option svg {
+  color: #d46e9a;
+}
+
+.pet-date-card {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #deceba;
+  border-radius: 16px;
+  background: rgba(255, 250, 243, 0.48);
+}
+
+.pet-date-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pet-home-date-field {
+  grid-column: 1 / 3;
+}
+
+.pet-weight-field {
+  grid-column: 3;
+}
+
+.pet-weight-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 58px;
+}
+
+.pet-weight-control input {
+  border-radius: 12px 0 0 12px;
+}
+
+.pet-weight-control strong {
+  display: grid;
+  place-items: center;
+  border: 1px solid #deceba;
+  border-left: 0;
+  border-radius: 0 12px 12px 0;
+  color: #67584b;
+  background: #f7ede1;
+}
+
+.pet-notes-field {
+  grid-column: 1 / -1;
+}
+
+.pet-notes-field textarea {
+  min-height: 92px;
+  padding: 14px;
+  resize: vertical;
+}
+
+.pet-save-profile {
+  grid-column: 1 / -1;
+  min-height: 54px;
+  font-size: 16px;
 }
 
 .wide-field {
@@ -1117,6 +1536,9 @@ textarea {
 .feature-field select, .feature-field input { grid-column: 2; min-width: 0; min-height: 34px; padding: 0; border: 0; background: transparent; color: var(--text); font-weight: 800; box-shadow: none; }
 .feature-field select:focus, .feature-field input:focus { outline: none; box-shadow: none; }
 .care-notes { grid-column: 1 / -1; padding: 14px; border: 1px solid rgba(225, 215, 202, 0.92); border-radius: 16px; background: rgba(255, 250, 245, 0.76); }
+.care-custom-type { grid-column: 1 / -1; display: grid; gap: 8px; padding: 14px; border: 1px solid rgba(225, 215, 202, 0.92); border-radius: 16px; background: rgba(255, 250, 245, 0.84); }
+.care-custom-type > span { color: #493d34; font-size: 13px; font-weight: 900; }
+.care-custom-type input { min-height: 44px; }
 .care-notes textarea { height: 54px; min-height: 54px; padding: 0; border: 0; background: transparent; resize: vertical; box-shadow: none; }
 .care-notes small { justify-self: end; color: var(--muted); }
 .composer-actions { grid-column: 1 / -1; justify-content: flex-end; gap: 12px; }
@@ -1770,7 +2192,365 @@ textarea {
   background: var(--rose-soft);
 }
 
+.record-source-badge {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: #55704f;
+  background: var(--sage-soft);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.care-row-note .record-source-badge {
+  display: flex;
+}
+
+.medical-records-layout {
+  display: grid;
+  grid-template-columns: minmax(330px, 0.78fr) minmax(480px, 1.22fr);
+  gap: 18px;
+}
+
+.medical-upload-panel,
+.medical-review-panel,
+.medical-record-list-panel {
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: rgba(255, 250, 243, 0.9);
+  box-shadow: var(--shadow);
+}
+
+.medical-upload-panel,
+.medical-review-panel {
+  padding: 22px;
+}
+
+.medical-record-list-panel {
+  margin-top: 18px;
+  padding: 22px;
+}
+
+.medical-section-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.medical-section-heading h2,
+.medical-section-heading p,
+.review-summary h3,
+.review-summary p,
+.medical-record-copy h3,
+.medical-record-copy p,
+.medical-review-empty h3,
+.medical-review-empty p {
+  margin: 0;
+}
+
+.medical-section-heading p,
+.review-summary p,
+.medical-record-copy p,
+.medical-review-empty p {
+  margin-top: 5px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.medical-icon,
+.medical-record-mark {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  color: #55704f;
+  background: var(--sage-soft);
+}
+
+.medical-icon svg,
+.medical-record-mark svg {
+  width: 19px;
+  height: 19px;
+}
+
+.medical-upload-form,
+.review-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.medical-upload-form label,
+.review-fields label {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.medical-upload-form input,
+.medical-upload-form select,
+.medical-upload-form textarea,
+.review-fields input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  color: var(--text);
+  background: var(--cream-strong);
+  font: inherit;
+  text-transform: none;
+}
+
+.review-fields .missing-review-value input {
+  border-color: #d97863;
+  background: #fff7f3;
+}
+
+.missing-review-value small {
+  color: #a84937;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.medical-upload-form textarea {
+  min-height: 138px;
+  resize: vertical;
+}
+
+.medical-file-field,
+.medical-source-field,
+.medical-extract-button,
+.review-fields .wide-field {
+  grid-column: 1 / -1;
+}
+
+.medical-upload-form small {
+  color: var(--muted);
+  font-weight: 500;
+  line-height: 1.45;
+  text-transform: none;
+}
+
+.medical-extract-button,
+.confirm-extraction-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.medical-extract-button svg,
+.confirm-extraction-button svg {
+  width: 17px;
+  height: 17px;
+}
+
+.review-summary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 15px;
+  border-radius: 14px;
+  background: var(--sage-soft);
+}
+
+.draft-status,
+.record-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  padding: 6px 10px;
+  border-radius: 999px;
+  color: #96601f;
+  background: #fff1d4;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.record-status.confirmed {
+  color: #55704f;
+  background: var(--sage-soft);
+}
+
+.review-group {
+  margin-top: 20px;
+}
+
+.review-group > h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+
+.review-item {
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--cream-strong);
+}
+
+.review-item + .review-item {
+  margin-top: 10px;
+}
+
+.review-item.excluded {
+  opacity: 0.5;
+}
+
+.include-control {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 12px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.include-control input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--sage);
+}
+
+.medication-fields {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.source-quote {
+  margin: 12px 0 0;
+  padding-top: 11px;
+  border-top: 1px dashed var(--line);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.review-safety-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 18px 0;
+  padding: 13px;
+  border-radius: 12px;
+  color: #55704f;
+  background: var(--sage-soft);
+}
+
+.review-safety-note svg {
+  flex: 0 0 auto;
+  width: 18px;
+}
+
+.review-safety-note p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.confirm-extraction-button {
+  width: 100%;
+}
+
+.medical-review-empty {
+  display: grid;
+  place-items: center;
+  min-height: 230px;
+  padding: 30px;
+  border: 1px dashed #d9cdbd;
+  border-radius: 15px;
+  text-align: center;
+}
+
+.medical-review-empty svg {
+  width: 34px;
+  height: 34px;
+  margin-bottom: 10px;
+  color: var(--sage);
+}
+
+.medical-record-list {
+  display: grid;
+  gap: 10px;
+}
+
+.medical-record-row {
+  display: grid;
+  grid-template-columns: 44px minmax(220px, 1fr) 110px 110px auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--cream-strong);
+}
+
+.medical-record-copy h3 {
+  margin-top: 2px;
+  font-size: 16px;
+}
+
+.medical-record-stats {
+  display: grid;
+  text-align: center;
+}
+
+.medical-record-stats strong {
+  font-size: 20px;
+}
+
+.medical-record-stats span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.medical-record-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.medical-record-actions .icon-text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.medical-record-actions svg {
+  width: 15px;
+  height: 15px;
+}
+
 @media (max-width: 1120px) {
+  .pet-onboarding-page {
+    padding: 24px;
+  }
+
+  .pet-onboarding-card {
+    grid-template-columns: 300px minmax(0, 1fr);
+  }
+
+  .pet-onboarding-intro {
+    padding-inline: 30px;
+  }
+
+  .pet-onboarding-form-panel {
+    padding-inline: 34px;
+  }
+
   .auth-page {
     grid-template-columns: minmax(360px, 42%) minmax(0, 1fr);
   }
@@ -1799,7 +2579,7 @@ textarea {
   }
 
   .nav-list {
-    grid-template-columns: repeat(5, minmax(120px, 1fr));
+    grid-template-columns: repeat(6, minmax(120px, 1fr));
     overflow-x: auto;
   }
 
@@ -1851,9 +2631,88 @@ textarea {
   .care-table-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .care-row-actions { grid-column: 1 / -1; }
 
+  .medical-records-layout { grid-template-columns: 1fr; }
+  .medical-record-row { grid-template-columns: 44px minmax(200px, 1fr) 100px 100px; }
+  .medical-record-actions { grid-column: 2 / -1; justify-content: flex-start; }
+
 }
 
 @media (max-width: 760px) {
+  .pet-onboarding-page {
+    display: block;
+    padding: 14px;
+  }
+
+  .pet-onboarding-card {
+    grid-template-columns: 1fr;
+    min-height: 0;
+    border-radius: 20px;
+  }
+
+  .pet-onboarding-intro {
+    padding: 28px 24px;
+  }
+
+  .pet-onboarding-brand {
+    font-size: 24px;
+  }
+
+  .account-created-pill {
+    margin-top: 24px;
+  }
+
+  .pet-onboarding-intro h2 {
+    margin-top: 24px;
+    font-size: 32px;
+  }
+
+  .pet-onboarding-intro > p {
+    max-width: 100%;
+  }
+
+  .onboarding-photo-wrap {
+    align-self: start;
+    grid-template-columns: 104px minmax(0, 1fr);
+    align-items: center;
+    justify-items: start;
+    margin-top: 26px;
+  }
+
+  .pet-photo-picker.onboarding-photo {
+    width: 104px;
+    height: 104px;
+  }
+
+  .pet-onboarding-form-panel {
+    padding: 30px 24px 28px;
+  }
+
+  .pet-onboarding-heading {
+    align-items: flex-start;
+  }
+
+  .pet-onboarding-heading h1 {
+    font-size: 36px;
+  }
+
+  .onboarding-pet-form {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .onboarding-name-field,
+  .onboarding-species-field,
+  .onboarding-breed-field,
+  .onboarding-sex-field,
+  .onboarding-birthday-field,
+  .onboarding-home-field,
+  .onboarding-weight-field,
+  .onboarding-notes-field,
+  .onboarding-message,
+  .onboarding-save {
+    grid-column: 1;
+  }
+
   .auth-page {
     grid-template-columns: 1fr;
   }
@@ -1910,7 +2769,6 @@ textarea {
   .pet-switcher,
   .section-intro,
   .care-columns,
-  .quick-capture,
   .home-overview,
   .pets-layout,
   .pets-main,
@@ -1957,8 +2815,7 @@ textarea {
     justify-content: stretch;
   }
 
-  .actions button,
-  .quick-capture button {
+  .actions button {
     width: 100%;
   }
 
@@ -1970,7 +2827,6 @@ textarea {
     grid-column: 1 / -1;
   }
 
-  .quick-capture,
   .health-strip,
   .pet-form,
   .pet-profile-grid,
@@ -1979,6 +2835,41 @@ textarea {
   .health-form,
   .memory-form {
     grid-template-columns: 1fr;
+  }
+
+  .pet-form-panel {
+    padding: 18px;
+  }
+
+  .pet-form-panel > .panel-heading {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .pet-profile-form {
+    gap: 18px;
+    margin-top: 20px;
+  }
+
+  .pet-photo-field,
+  .pet-name-field,
+  .pet-choice-field,
+  .pet-breed-field,
+  .pet-date-card,
+  .pet-home-date-field,
+  .pet-weight-field,
+  .pet-notes-field,
+  .pet-save-profile {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .pet-photo-field {
+    justify-items: start;
+  }
+
+  .pet-photo-field small {
+    max-width: 132px;
   }
 
   .health-layout,
@@ -2068,6 +2959,41 @@ textarea {
 
   .settings-control-row select {
     width: 100%;
+  }
+
+  .medical-records-layout,
+  .medical-upload-panel,
+  .medical-review-panel,
+  .medical-record-list-panel,
+  .medical-upload-form,
+  .review-fields,
+  .medical-record-row {
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: 1fr;
+  }
+
+  .medical-section-heading,
+  .review-summary {
+    align-items: flex-start;
+  }
+
+  .review-summary {
+    flex-direction: column;
+  }
+
+  .medical-record-mark {
+    display: none;
+  }
+
+  .medical-record-actions {
+    grid-column: auto;
+    flex-wrap: wrap;
+  }
+
+  .medical-record-stats {
+    justify-items: start;
+    text-align: left;
   }
 
   .detail-list div {

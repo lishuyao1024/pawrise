@@ -11,6 +11,10 @@ class Pet(TimestampMixin, db.Model):
             "weight_lb IS NULL OR weight_lb > 0",
             name="ck_pets_weight_positive",
         ),
+        db.CheckConstraint(
+            "sex IS NULL OR sex IN ('male', 'female')",
+            name="ck_pets_sex_valid",
+        ),
         db.Index("ix_pets_user_id", "user_id"),
     )
 
@@ -22,6 +26,7 @@ class Pet(TimestampMixin, db.Model):
     )
     name = db.Column(db.String(100), nullable=False)
     species = db.Column(db.String(50), nullable=False)
+    sex = db.Column(db.String(10))
     breed = db.Column(db.String(100))
     birthday = db.Column(db.Date)
     adoption_date = db.Column(db.Date)
@@ -38,6 +43,12 @@ class Pet(TimestampMixin, db.Model):
     )
     memories = db.relationship(
         "Memory",
+        back_populates="pet",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    medical_records = db.relationship(
+        "MedicalRecord",
         back_populates="pet",
         cascade="all, delete-orphan",
         passive_deletes=True,
@@ -60,6 +71,7 @@ class Pet(TimestampMixin, db.Model):
             "user_id": self.user_id,
             "name": self.name,
             "species": self.species,
+            "sex": self.sex,
             "breed": self.breed,
             "birthday": self.birthday.isoformat() if self.birthday else None,
             "adoption_date": (

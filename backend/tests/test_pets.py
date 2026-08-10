@@ -7,6 +7,7 @@ from app.models import CareReminder, Memory, Pet, User
 VALID_PET = {
     "name": "Dami",
     "species": "Cat",
+    "sex": "female",
     "breed": "Siamese",
     "birthday": "2023-04-18",
     "adoption_date": "2023-06-12",
@@ -23,12 +24,14 @@ def test_create_pet_persists_database_row(app, client, auth_headers):
     payload = response.get_json()
     assert payload["data"]["name"] == "Dami"
     assert payload["data"]["weight_lb"] == 9.2
+    assert payload["data"]["sex"] == "female"
     assert payload["data"]["age_years"] >= 3
 
     with app.app_context():
         pet = Pet.query.one()
         assert pet.name == "Dami"
         assert pet.species == "Cat"
+        assert pet.sex == "female"
 
 
 def test_pet_endpoints_require_authentication(client):
@@ -189,6 +192,7 @@ def test_create_pet_rejects_invalid_values(client, auth_headers):
         json={
             "name": "",
             "species": "",
+            "sex": "unknown",
             "birthday": "2999-01-01",
             "adoption_date": "not-a-date",
             "weight_lb": -2,
@@ -200,6 +204,7 @@ def test_create_pet_rejects_invalid_values(client, auth_headers):
     assert set(details) == {
         "name",
         "species",
+        "sex",
         "birthday",
         "adoption_date",
         "weight_lb",
