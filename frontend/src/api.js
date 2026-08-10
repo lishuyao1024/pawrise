@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:5000/api";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
 const TOKEN_KEY = "pawrise_access_token";
 
 export function setAccessToken(token) {
@@ -32,7 +32,7 @@ export async function apiRequest(path, options = {}) {
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
     });
   } catch {
-    throw new Error("Cannot reach the PawRise API. Make sure the backend is running on port 5000.");
+    throw new Error("Cannot reach the PawRise API. Please try again.");
   }
 
   const payload = await response.json().catch(() => null);
@@ -62,7 +62,7 @@ async function uploadImage(file) {
       body: formData,
     });
   } catch {
-    throw new Error("Cannot reach the PawRise API. Make sure the backend is running on port 5000.");
+    throw new Error("Cannot reach the PawRise API. Please try again.");
   }
 
   const payload = await response.json().catch(() => null);
@@ -82,7 +82,7 @@ async function createMedicalRecord(formData) {
       body: formData,
     });
   } catch {
-    throw new Error("Cannot reach the PawRise API. Make sure the backend is running on port 5000.");
+    throw new Error("Cannot reach the PawRise API. Please try again.");
   }
 
   const payload = await response.json().catch(() => null);
@@ -103,7 +103,7 @@ async function getMedicalRecordDocument(id) {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
   } catch {
-    throw new Error("Cannot reach the PawRise API. Make sure the backend is running on port 5000.");
+    throw new Error("Cannot reach the PawRise API. Please try again.");
   }
   if (!response.ok) {
     const payload = await response.json().catch(() => null);

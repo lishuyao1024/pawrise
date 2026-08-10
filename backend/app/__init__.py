@@ -1,8 +1,9 @@
 from pathlib import Path
 
 import click
-from flask import Flask
+from flask import Flask, send_from_directory
 from sqlalchemy import inspect, text
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from config import Config
 
@@ -13,6 +14,7 @@ def create_app(config_object=None):
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_object(Config)
     app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     if config_object:
         if isinstance(config_object, dict):
@@ -50,10 +52,31 @@ def create_app(config_object=None):
     app.register_blueprint(reminders_bp)
     app.register_blueprint(settings_bp)
     app.register_blueprint(uploads_bp)
+    register_frontend_routes(app)
     register_jwt_error_handlers()
     register_cli_commands(app)
 
     return app
+
+
+def register_frontend_routes(app):
+    """Serve the Vite production build from the same origin as the API."""
+    frontend_directory = Path(app.root_path).parents[1] / "frontend" / "dist"
+
+    @app.get("/")
+    @app.get("/<path:path>")
+    def frontend(path=""):
+        requested_file = frontend_directory / path
+        if path and requested_file.is_file():
+            return send_from_directory(frontend_directory, path)
+        if (frontend_directory / "index.html").is_file():
+            return send_from_directory(frontend_directory, "index.html")
+        return {
+            "error": {
+                "code": "FRONTEND_NOT_BUILT",
+                "message": "The frontend production build is unavailable.",
+            }
+        }, 503
 
 
 def register_cli_commands(app):
