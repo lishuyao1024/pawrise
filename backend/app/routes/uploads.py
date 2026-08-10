@@ -15,9 +15,8 @@ ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 
 
 def upload_directory():
-    directory = Path(
-        current_app.config.get("UPLOAD_FOLDER", Path(current_app.instance_path) / "uploads")
-    )
+    configured_directory = current_app.config.get("UPLOAD_FOLDER")
+    directory = Path(configured_directory or Path(current_app.instance_path) / "uploads")
     directory.mkdir(parents=True, exist_ok=True)
     return directory
 

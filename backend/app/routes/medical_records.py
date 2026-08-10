@@ -57,11 +57,9 @@ def owned_record_or_none(record_id, user_id):
 
 
 def medical_record_directory():
+    configured_directory = current_app.config.get("MEDICAL_RECORD_UPLOAD_FOLDER")
     directory = Path(
-        current_app.config.get(
-            "MEDICAL_RECORD_UPLOAD_FOLDER",
-            Path(current_app.instance_path) / "medical_records",
-        )
+        configured_directory or Path(current_app.instance_path) / "medical_records"
     )
     directory.mkdir(parents=True, exist_ok=True)
     return directory
