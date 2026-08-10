@@ -5,7 +5,7 @@ PawRise is a full-stack pet health, care, and memory-management web application.
 > **Current status:** The React frontend is connected to the Flask REST API. Authentication, database-backed pet care features, Medical Records extraction and confirmation, linked reminders, settings, and authenticated uploads are implemented. The project is verified by 62 backend tests and a successful frontend production build.
 
 ## Features
-
+  
 - Secure user registration and login with JWT authentication
 - Per-user data isolation
 - Pet profile creation, editing, deletion, and photo upload
@@ -21,7 +21,7 @@ PawRise is a full-stack pet health, care, and memory-management web application.
 - SQLite foreign keys, indexes, and cascade deletion
 - Standard JSON API responses and validation errors
 - Shareable Postman API collection
-
+ 
 ## Technology Stack
 
 ### Backend
@@ -56,9 +56,9 @@ pawrise/
 |   |-- config.py
 |   |-- requirements.txt
 |   `-- run.py
-|-- frontend/             # React application connected to the API
-|-- docs/                 # API, database, test, and Postman documentation
-|-- postman/              # Postman local collection files
+|-- frontend/             #  React application connected to the API
+|-- docs/                 #  API, database, test, and Postman documentation
+|-- postman/              #  Postman local collection files
 |-- .gitignore
 `-- README.md
 ```
