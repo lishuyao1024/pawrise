@@ -237,8 +237,79 @@ button:disabled {
   grid-column: 1;
 }
 
-.onboarding-birthday-field {
+.onboarding-age-field {
   grid-column: 1;
+}
+
+.pet-age-field {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.age-mode-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.age-mode-toggle button {
+  min-height: 34px;
+  padding: 6px 9px;
+  border: 1px solid #deceba;
+  border-radius: 10px;
+  color: #75614f;
+  background: #fffaf3;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.age-mode-toggle button.selected {
+  border-color: var(--coral);
+  color: var(--coral-dark);
+  background: var(--rose-soft);
+  box-shadow: inset 0 0 0 1px rgba(220, 118, 94, 0.14);
+}
+
+.exact-birthday-field,
+.approximate-age-field {
+  display: grid;
+  gap: 6px;
+}
+
+.exact-birthday-field > span,
+.approximate-age-field > span {
+  color: #7a6b5d;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.approximate-age-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 100px;
+}
+
+.approximate-age-control input {
+  border-radius: 13px 0 0 13px;
+}
+
+.approximate-age-control select {
+  min-width: 0;
+  border: 1px solid #deceba;
+  border-left: 0;
+  border-radius: 0 13px 13px 0;
+  color: #67584b;
+  background: #f7ede1;
+  font-weight: 800;
+}
+
+.approximate-age-field small {
+  color: #8a7a6b;
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .onboarding-home-field {
@@ -1241,6 +1312,22 @@ textarea {
   background: rgba(255, 250, 243, 0.48);
 }
 
+.pet-date-card > legend {
+  padding: 0;
+  color: #67584b;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.pet-date-card .age-mode-toggle {
+  max-width: 340px;
+}
+
+.pet-date-card .approximate-age-control,
+.pet-date-card .exact-birthday-field {
+  max-width: 440px;
+}
+
 .pet-date-heading {
   display: flex;
   align-items: center;
@@ -1685,6 +1772,204 @@ textarea {
   background: #f0e4d5;
 }
 
+.memory-image-button {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 16px;
+  background: #f0e4d5;
+  cursor: zoom-in;
+}
+
+.memory-image-button img {
+  display: block;
+  transition: transform 220ms ease;
+}
+
+.memory-image-button:hover img,
+.memory-image-button:focus-visible img {
+  transform: scale(1.025);
+}
+
+.memory-image-button:focus-visible {
+  outline: 3px solid rgba(220, 118, 94, 0.55);
+  outline-offset: 3px;
+}
+
+.memory-image-hint {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: rgba(45, 36, 31, 0.82);
+  color: #fffaf3;
+  font-size: 12px;
+  font-weight: 900;
+  opacity: 0;
+  transform: translateY(5px);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.memory-image-button:hover .memory-image-hint,
+.memory-image-button:focus-visible .memory-image-hint {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.memory-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: clamp(18px, 4vw, 48px);
+  background: rgba(30, 24, 21, 0.88);
+  backdrop-filter: blur(10px);
+  animation: memory-lightbox-in 180ms ease both;
+}
+
+.memory-lightbox-panel {
+  position: relative;
+  display: grid;
+  gap: 12px;
+  width: fit-content;
+  max-width: min(1100px, 94vw);
+  max-height: 90vh;
+  padding: 14px;
+  border: 1px solid rgba(255, 250, 243, 0.2);
+  border-radius: 22px;
+  background: #241d19;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.42);
+}
+
+.memory-lightbox-panel > img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: calc(90vh - 106px);
+  margin: auto;
+  border-radius: 14px;
+  object-fit: contain;
+}
+
+.memory-lightbox-actions {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.memory-lightbox-download,
+.memory-lightbox-close {
+  min-height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(30, 24, 21, 0.78);
+  color: #fff;
+  cursor: pointer;
+  transition: background 180ms ease, transform 180ms ease, opacity 180ms ease;
+}
+
+.memory-lightbox-download {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.memory-lightbox-close {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  place-items: center;
+  border-radius: 50%;
+}
+
+.memory-lightbox-download:hover,
+.memory-lightbox-close:hover {
+  background: rgba(220, 118, 94, 0.95);
+  transform: scale(1.05);
+}
+
+.memory-lightbox-download:focus-visible,
+.memory-lightbox-close:focus-visible {
+  outline: 3px solid rgba(255, 250, 243, 0.8);
+  outline-offset: 3px;
+}
+
+.memory-lightbox-download svg,
+.memory-lightbox-close svg {
+  width: 22px;
+  height: 22px;
+}
+
+.memory-lightbox-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 2px 4px;
+  color: #fffaf3;
+}
+
+.memory-lightbox-caption span {
+  color: rgba(255, 250, 243, 0.7);
+  font-size: 13px;
+}
+
+.memory-lightbox-caption strong {
+  text-align: right;
+}
+
+@keyframes memory-lightbox-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (max-width: 640px) {
+  .memory-lightbox {
+    padding: 12px;
+  }
+
+  .memory-lightbox-panel {
+    max-width: 100%;
+    max-height: 94vh;
+    padding: 10px;
+  }
+
+  .memory-lightbox-panel > img {
+    max-height: calc(94vh - 122px);
+  }
+
+  .memory-lightbox-actions {
+    top: 18px;
+    right: 18px;
+  }
+
+  .memory-lightbox-caption {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .memory-lightbox-caption strong {
+    text-align: left;
+  }
+}
+
 .empty-state,
 .placeholder-page {
   display: grid;
@@ -1786,6 +2071,34 @@ textarea {
 .auth-form-shell {
   width: min(100%, 508px);
   transform: translateY(-18px);
+}
+
+.auth-home-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 24px;
+  color: #71685f;
+  font-size: 14px;
+  font-weight: 800;
+  text-decoration: none;
+  transition: color 160ms ease, transform 160ms ease;
+}
+
+.auth-home-link svg {
+  width: 17px;
+  height: 17px;
+}
+
+.auth-home-link:hover {
+  color: var(--coral-dark);
+  transform: translateX(-2px);
+}
+
+.auth-home-link:focus-visible {
+  border-radius: 6px;
+  outline: 3px solid rgba(220, 118, 94, 0.2);
+  outline-offset: 4px;
 }
 
 .auth-mobile-brand {
@@ -2704,7 +3017,7 @@ textarea {
   .onboarding-species-field,
   .onboarding-breed-field,
   .onboarding-sex-field,
-  .onboarding-birthday-field,
+  .onboarding-age-field,
   .onboarding-home-field,
   .onboarding-weight-field,
   .onboarding-notes-field,

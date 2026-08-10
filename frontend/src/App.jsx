@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bell, CalendarDays, Cat, CheckCircle2, Dog, Download, Eye, EyeOff, FileText, LogOut, Mars, PawPrint, Repeat2, ShieldCheck, Sparkles, Syringe, Trash2, Upload, UserRound, Venus } from "lucide-react";
+import { ArrowLeft, Bell, CalendarDays, Cat, CheckCircle2, Dog, Download, Eye, EyeOff, FileText, LogOut, Mars, PawPrint, Repeat2, ShieldCheck, Sparkles, Syringe, Trash2, Upload, UserRound, Venus, X } from "lucide-react";
 import authBrandPanel from "./assets/auth-brand-panel.png";
 import damiMemory from "./assets/dami-memory.png";
 import damiProfile from "./assets/dami-profile.png";
@@ -111,7 +111,10 @@ const emptyPetDraft = {
   sex: "",
   breed: "",
   age: "",
+  ageMode: "birthday",
   birthday: "",
+  estimatedAge: "",
+  estimatedAgeUnit: "years",
   adoption: "",
   weight: "",
   note: "",
@@ -155,6 +158,75 @@ function formatCareDate(value) {
   return dateValue(value).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
 }
 
+function approximateAgeLabel(value, unit) {
+  if (value === "" || value == null) return "Age not set";
+  const singularUnit = unit === "months" ? "month" : "year";
+  const label = Number(value) === 1 ? singularUnit : unit;
+  return `About ${value} ${label}`;
+}
+
+function PetAgeField({ className = "", petDraft, setPetDraft }) {
+  const approximate = petDraft.ageMode === "approximate";
+  const maximum = petDraft.estimatedAgeUnit === "months" ? 1200 : 100;
+
+  return (
+    <fieldset className={`pet-age-field ${className}`.trim()}>
+      <legend>Age information</legend>
+      <div className="age-mode-toggle" aria-label="Age entry method">
+        <button
+          aria-pressed={!approximate}
+          className={!approximate ? "selected" : ""}
+          type="button"
+          onClick={() => setPetDraft((current) => ({ ...current, ageMode: "birthday" }))}
+        >
+          Exact birthday
+        </button>
+        <button
+          aria-pressed={approximate}
+          className={approximate ? "selected" : ""}
+          type="button"
+          onClick={() => setPetDraft((current) => ({ ...current, ageMode: "approximate" }))}
+        >
+          Approx. age
+        </button>
+      </div>
+
+      {approximate ? (
+        <div className="approximate-age-field">
+          <span>Best estimate</span>
+          <div className="approximate-age-control">
+            <input
+              aria-label="Approximate age"
+              inputMode="numeric"
+              max={maximum}
+              min="1"
+              step="1"
+              type="number"
+              value={petDraft.estimatedAge}
+              onChange={(event) => setPetDraft((current) => ({ ...current, estimatedAge: event.target.value }))}
+              placeholder="3"
+            />
+            <select
+              aria-label="Approximate age unit"
+              value={petDraft.estimatedAgeUnit}
+              onChange={(event) => setPetDraft((current) => ({ ...current, estimatedAgeUnit: event.target.value }))}
+            >
+              <option value="months">Months</option>
+              <option value="years">Years</option>
+            </select>
+          </div>
+          <small>An estimate is enough—you can update it later.</small>
+        </div>
+      ) : (
+        <label className="exact-birthday-field">
+          <span>Birthday</span>
+          <input aria-label="Birthday" max={todayIso()} type="date" value={petDraft.birthday} onChange={(event) => setPetDraft((current) => ({ ...current, birthday: event.target.value }))} />
+        </label>
+      )}
+    </fieldset>
+  );
+}
+
 function reminderStatus(due) {
   const days = Math.ceil((dateValue(due) - TODAY) / 86400000);
   if (days < 0) return "overdue";
@@ -183,14 +255,21 @@ const repeatToApi = {
 const repeatFromApi = Object.fromEntries(Object.entries(repeatToApi).map(([label, value]) => [value, label]));
 
 function normalizePet(pet) {
+  const ageIsEstimated = Boolean(pet.age_is_estimated);
   return {
     id: String(pet.id),
     name: pet.name,
     species: pet.species,
     sex: pet.sex || "",
     breed: pet.breed || pet.species,
-    age: pet.age_years == null ? "Age not set" : `${pet.age_years} years`,
+    age: ageIsEstimated
+      ? approximateAgeLabel(pet.estimated_age_value, pet.estimated_age_unit)
+      : pet.age_years == null ? "Age not set" : `${pet.age_years} years`,
+    ageMode: ageIsEstimated ? "approximate" : "birthday",
     birthday: pet.birthday || "",
+    estimatedAge: pet.estimated_age_value ?? "",
+    estimatedAgeUnit: pet.estimated_age_unit || "years",
+    ageIsEstimated,
     adoption: pet.adoption_date || "",
     weight: pet.weight_lb ?? "",
     image: pet.image_url || (pet.id % 2 === 0 ? roroProfile : damiProfile),
@@ -233,12 +312,15 @@ function normalizeMemory(memory) {
 }
 
 function petPayload(draft) {
+  const approximate = draft.ageMode === "approximate";
   return {
     name: draft.name.trim(),
     species: draft.species.trim(),
     sex: draft.sex || null,
     breed: draft.breed.trim() || null,
-    birthday: draft.birthday || null,
+    birthday: approximate ? null : draft.birthday || null,
+    estimated_age_value: approximate && draft.estimatedAge !== "" ? Number(draft.estimatedAge) : null,
+    estimated_age_unit: approximate && draft.estimatedAge !== "" ? draft.estimatedAgeUnit : null,
     adoption_date: draft.adoption || null,
     weight_lb: draft.weight === "" ? null : Number(draft.weight),
     image_url: draft.image?.startsWith("http") ? draft.image : null,
@@ -336,6 +418,10 @@ function AuthView({ onAuthenticate }) {
 
       <section className="auth-form-panel">
         <div className="auth-form-shell">
+          <a className="auth-home-link" href="/">
+            <ArrowLeft aria-hidden="true" />
+            Back to home
+          </a>
           <span className="auth-mobile-brand">PawRise</span>
           <h1>{mode === "login" ? "Welcome back" : "Create your account"}</h1>
           <p className="auth-intro">
@@ -461,10 +547,7 @@ function PetOnboardingView({ petDraft, setPetDraft, onSave, onSkip, statusMessag
               </div>
             </fieldset>
 
-            <label className="onboarding-birthday-field">
-              <span>Birthday</span>
-              <input aria-label="Birthday" max={todayIso()} type="date" value={petDraft.birthday} onChange={(event) => setPetDraft((current) => ({ ...current, birthday: event.target.value }))} />
-            </label>
+            <PetAgeField className="onboarding-age-field" petDraft={petDraft} setPetDraft={setPetDraft} />
 
             <label className="onboarding-home-field">
               <span>Day they came home</span>
@@ -762,8 +845,8 @@ function MyPetsView({
 
                   <dl className="detail-list">
                     <div>
-                      <dt>Birthday</dt>
-                      <dd>{pet.birthday ? formatCareDate(pet.birthday) : "Not set"}</dd>
+                      <dt>{pet.ageIsEstimated ? "Approximate age" : "Birthday"}</dt>
+                      <dd>{pet.ageIsEstimated ? pet.age : pet.birthday ? formatCareDate(pet.birthday) : "Not set"}</dd>
                     </div>
                     <div>
                       <dt>Sex</dt>
@@ -867,10 +950,7 @@ function MyPetsView({
                 </div>
               </fieldset>
 
-              <div className="pet-date-card">
-                <div className="pet-date-heading"><span>Birthday</span></div>
-                <input aria-label="Birthday" max={todayIso()} type="date" value={petDraft.birthday} onChange={(event) => setPetDraft((current) => ({ ...current, birthday: event.target.value }))} />
-              </div>
+              <PetAgeField className="pet-date-card" petDraft={petDraft} setPetDraft={setPetDraft} />
 
               <label className="pet-home-date-field">
                 <span>Day they came home</span>
@@ -1069,6 +1149,31 @@ function MemoryTimelineView({
   setToast,
 }) {
   const [photoUploading, setPhotoUploading] = useState(false);
+  const [previewMemory, setPreviewMemory] = useState(null);
+
+  useEffect(() => {
+    if (!formOpen || memoryDraft.petId || pets.length === 0) return;
+    setMemoryDraft((current) => (
+      current.petId ? current : { ...current, petId: pets[0].id }
+    ));
+  }, [formOpen, memoryDraft.petId, pets, setMemoryDraft]);
+
+  useEffect(() => {
+    if (!previewMemory) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setPreviewMemory(null);
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [previewMemory]);
 
   async function uploadMemoryPhoto(event) {
     const file = event.target.files?.[0];
@@ -1088,6 +1193,18 @@ function MemoryTimelineView({
   const sortedMemories = memories
     .slice()
     .sort((a, b) => new Date(b.date) - new Date(a.date));
+  const downloadFilename = previewMemory
+    ? `${petName(pets, previewMemory.petId)}-${previewMemory.date}-${previewMemory.title}`
+      .replace(/[<>:"/\\|?*\u0000-\u001F]/g, "-")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 120) || "pawrise-memory"
+    : "pawrise-memory";
+  const downloadExtension = previewMemory?.image
+    ?.match(/\.(png|jpe?g|gif|webp)(?:[?#]|$)/i)?.[1]
+    ?.toLowerCase()
+    ?.replace("jpeg", "jpg") || "jpg";
 
   return (
     <>
@@ -1121,9 +1238,11 @@ function MemoryTimelineView({
               <label>
                 Pet
                 <select
+                  required
                   value={memoryDraft.petId}
                   onChange={(event) => setMemoryDraft((current) => ({ ...current, petId: event.target.value }))}
                 >
+                  <option disabled value="">Select a pet</option>
                   {pets.map((pet) => (
                     <option key={pet.id} value={pet.id}>
                       {pet.name}
@@ -1178,11 +1297,59 @@ function MemoryTimelineView({
                 <p className="memory-scene">{memory.scene}</p>
                 <p>{memory.description}</p>
               </div>
-              <img alt={`${memory.title} memory`} src={memory.image} />
+              <button
+                aria-label={`Open ${memory.title} photo`}
+                className="memory-image-button"
+                type="button"
+                onClick={() => setPreviewMemory(memory)}
+              >
+                <img alt={`${memory.title} memory`} src={memory.image} />
+                <span className="memory-image-hint">View photo</span>
+              </button>
             </article>
           ))}
         </div>
       </section>
+
+      {previewMemory && (
+        <div
+          aria-label={`${previewMemory.title} photo preview`}
+          aria-modal="true"
+          className="memory-lightbox"
+          role="dialog"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setPreviewMemory(null);
+          }}
+        >
+          <section className="memory-lightbox-panel">
+            <div className="memory-lightbox-actions">
+              <a
+                className="memory-lightbox-download"
+                download={`${downloadFilename}.${downloadExtension}`}
+                href={previewMemory.image}
+                onClick={() => setToast("Memory photo download started.")}
+              >
+                <Download aria-hidden="true" />
+                <span>Download photo</span>
+              </a>
+              <button
+                autoFocus
+                aria-label="Close photo preview"
+                className="memory-lightbox-close"
+                type="button"
+                onClick={() => setPreviewMemory(null)}
+              >
+                <X aria-hidden="true" />
+              </button>
+            </div>
+            <img alt={`${previewMemory.title} full size`} src={previewMemory.image} />
+            <div className="memory-lightbox-caption">
+              <span>{petName(pets, previewMemory.petId)} · {formatCareDate(previewMemory.date)}</span>
+              <strong>{previewMemory.title}</strong>
+            </div>
+          </section>
+        </div>
+      )}
     </>
   );
 }
@@ -1843,10 +2010,13 @@ export function App() {
   }
 
   function startAddMemory() {
+    const defaultPetId = pets.some((pet) => pet.id === selectedPet)
+      ? selectedPet
+      : pets[0]?.id ?? "";
     setMemoryFormOpen(true);
     setMemoryDraft({
       ...emptyMemoryDraft,
-      petId: selectedPet === "all" ? pets[0]?.id ?? "" : selectedPet,
+      petId: defaultPetId,
       image: "",
     });
     setToast("Add memory form opened.");

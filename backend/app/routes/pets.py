@@ -82,6 +82,42 @@ def validate_pet_payload(payload):
             values[field] = None
             details[field] = str(exc)
 
+    raw_estimated_age = payload.get("estimated_age_value")
+    raw_estimated_unit = payload.get("estimated_age_unit")
+    if raw_estimated_age in (None, "") and raw_estimated_unit in (None, ""):
+        values["estimated_age_value"] = None
+        values["estimated_age_unit"] = None
+    else:
+        try:
+            if isinstance(raw_estimated_age, bool):
+                raise ValueError
+            estimated_age = int(raw_estimated_age)
+            if str(raw_estimated_age).strip() != str(estimated_age):
+                raise ValueError
+        except (TypeError, ValueError):
+            values["estimated_age_value"] = None
+            details["estimated_age_value"] = "Approximate age must be a whole number."
+        else:
+            values["estimated_age_value"] = estimated_age
+
+        if raw_estimated_unit not in {"months", "years"}:
+            values["estimated_age_unit"] = None
+            details["estimated_age_unit"] = "Approximate age unit must be months or years."
+        else:
+            values["estimated_age_unit"] = raw_estimated_unit
+
+        if "estimated_age_value" not in details and raw_estimated_unit in {"months", "years"}:
+            maximum = 1200 if raw_estimated_unit == "months" else 100
+            if estimated_age < 1 or estimated_age > maximum:
+                details["estimated_age_value"] = (
+                    f"Approximate age must be between 1 and {maximum} {raw_estimated_unit}."
+                )
+
+    if values.get("birthday") is not None and values.get("estimated_age_value") is not None:
+        details["estimated_age_value"] = (
+            "Choose either an exact birthday or an approximate age, not both."
+        )
+
     try:
         values["weight_lb"] = parse_positive_decimal(payload.get("weight_lb"))
     except ValueError as exc:

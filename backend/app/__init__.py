@@ -134,6 +134,14 @@ def upgrade_existing_sqlite_schema():
             }
             if "sex" not in pet_columns:
                 connection.execute(text("ALTER TABLE pets ADD COLUMN sex VARCHAR(10)"))
+            if "estimated_age_value" not in pet_columns:
+                connection.execute(
+                    text("ALTER TABLE pets ADD COLUMN estimated_age_value INTEGER")
+                )
+            if "estimated_age_unit" not in pet_columns:
+                connection.execute(
+                    text("ALTER TABLE pets ADD COLUMN estimated_age_unit VARCHAR(10)")
+                )
 
 
 def register_jwt_error_handlers():
