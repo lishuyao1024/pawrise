@@ -34,6 +34,40 @@ def test_create_pet_persists_database_row(app, client, auth_headers):
         assert pet.sex == "female"
 
 
+def test_create_pet_accepts_approximate_age(app, client, auth_headers):
+    approximate_pet = {
+        **VALID_PET,
+        "birthday": None,
+        "estimated_age_value": 3,
+        "estimated_age_unit": "years",
+    }
+
+    response = client.post("/api/pets", headers=auth_headers, json=approximate_pet)
+
+    assert response.status_code == 201
+    pet = response.get_json()["data"]
+    assert pet["birthday"] is None
+    assert pet["estimated_age_value"] == 3
+    assert pet["estimated_age_unit"] == "years"
+    assert pet["age_is_estimated"] is True
+    assert pet["age_years"] == 3
+
+
+def test_create_pet_rejects_exact_and_approximate_age_together(client, auth_headers):
+    response = client.post(
+        "/api/pets",
+        headers=auth_headers,
+        json={
+            **VALID_PET,
+            "estimated_age_value": 2,
+            "estimated_age_unit": "years",
+        },
+    )
+
+    assert response.status_code == 400
+    assert "estimated_age_value" in response.get_json()["error"]["details"]
+
+
 def test_pet_endpoints_require_authentication(client):
     assert client.get("/api/pets").status_code == 401
     assert client.post("/api/pets", json=VALID_PET).status_code == 401
