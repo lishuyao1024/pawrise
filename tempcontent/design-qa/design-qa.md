@@ -2,10 +2,10 @@
 
 ## Comparison target
 
-- Source visual truth: `C:\Users\86139\AppData\Local\Temp\codex-clipboard-e96c5f36-47bf-4584-bad2-b3165a8a7017.png`
-- Implementation: `http://127.0.0.1:5173/` (the original application remains available at `/app.html`)
-- Implementation screenshot: `C:\Users\86139\Desktop\capstone\pawrise\landing-desktop.png`
-- Combined comparison: `C:\Users\86139\Desktop\capstone\pawrise\landing-comparison.png`
+- Source visual truth: original reference supplied during the design pass (not retained in this repository)
+- Implementation: `http://127.0.0.1:5001/` (application pages remain available under `/app.html`)
+- Implementation screenshot: `landing-desktop.png`
+- Combined comparison: `landing-comparison.png`
 - Additional scroll evidence: `landing-why-section.png`, `landing-features-section.png`
 - State: public landing page, top of page; no authentication
 
