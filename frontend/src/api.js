@@ -134,6 +134,8 @@ export const api = {
   memories: {
     list: () => apiRequest("/memories"),
     create: (body) => apiRequest("/memories", { method: "POST", body }),
+    update: (id, body) => apiRequest(`/memories/${id}`, { method: "PUT", body }),
+    remove: (id) => apiRequest(`/memories/${id}`, { method: "DELETE" }),
   },
   medicalRecords: {
     list: () => apiRequest("/medical-records"),
