@@ -314,6 +314,9 @@ button:disabled {
 
 .onboarding-home-field {
   grid-column: 2;
+  width: 80%;
+  align-self: end;
+  justify-self: start;
 }
 
 .onboarding-weight-field {
@@ -3043,6 +3046,11 @@ textarea {
   .onboarding-message,
   .onboarding-save {
     grid-column: 1;
+  }
+
+  .onboarding-home-field {
+    width: 100%;
+    align-self: auto;
   }
 
   .auth-page {

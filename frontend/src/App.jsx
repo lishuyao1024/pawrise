@@ -137,6 +137,21 @@ const emptyMemoryDraft = {
   photoName: "",
 };
 
+const defaultMemoryTitles = [
+  "A Happy Moment",
+  "A Day to Remember",
+  "A Little Adventure",
+  "A Special Day Together",
+  "Sweet Memories",
+  "A Cozy Moment",
+  "Another Beautiful Day",
+  "Growing Up Together",
+];
+
+function randomMemoryTitle() {
+  return defaultMemoryTitles[Math.floor(Math.random() * defaultMemoryTitles.length)];
+}
+
 const emptyMedicalRecordDraft = {
   petId: "",
   title: "",
@@ -343,15 +358,15 @@ function timeGreeting() {
   const hour = new Date().getHours();
 
   if (hour >= 5 && hour < 12) {
-    return "morning";
+    return "Morning";
   }
   if (hour >= 12 && hour < 17) {
-    return "afternoon";
+    return "Afternoon";
   }
   if (hour >= 17 && hour < 22) {
-    return "evening";
+    return "Evening";
   }
-  return "night";
+  return "Night";
 }
 
 function StatusPill({ status }) {
@@ -1215,7 +1230,7 @@ function MemoryTimelineView({
         <div>
           <span className="eyebrow">Memory timeline</span>
           <h1>Memories</h1>
-          <p>Save a title, date, and photo for the moments you want to remember.</p>
+          <p>Save a date and photo, then add a title or let PawRise choose one for you.</p>
         </div>
         <div className="actions">
           <button className="primary-button" type="button" onClick={startAddMemory}>
@@ -1267,14 +1282,15 @@ function MemoryTimelineView({
                 <input
                   value={memoryDraft.title}
                   onChange={(event) => setMemoryDraft((current) => ({ ...current, title: event.target.value }))}
-                  placeholder="A small happy moment"
+                  placeholder="Leave blank for a surprise title"
                 />
               </label>
               <label className="wide-field">
-                Photo from this device (optional)
+                Photo from this device
                 <input
                   accept="image/jpeg,image/png,image/gif,image/webp"
                   disabled={photoUploading}
+                  required={!memoryDraft.image}
                   type="file"
                   onChange={uploadMemoryPhoto}
                 />
@@ -1282,7 +1298,7 @@ function MemoryTimelineView({
                   {photoUploading
                     ? "Uploading photo..."
                     : memoryDraft.photoName
-                      || (editingMemoryId ? "The current photo will be kept unless you choose another." : "JPG, PNG, GIF, or WebP; maximum 5 MB.")}
+                      || (editingMemoryId ? "The current photo will be kept unless you choose another." : "Required. JPG, PNG, GIF, or WebP; maximum 5 MB.")}
                 </small>
               </label>
               <button className="primary-button wide-field" disabled={photoUploading} type="submit">
@@ -2065,15 +2081,16 @@ export function App() {
 
   async function saveMemory(event) {
     event.preventDefault();
-    if (!memoryDraft.petId || !memoryDraft.title.trim() || !memoryDraft.date.trim()) {
-      setToast("Pet, title, and date are required.");
+    if (!memoryDraft.petId || !memoryDraft.date.trim() || !memoryDraft.image) {
+      setToast("Pet, date, and photo are required.");
       return;
     }
 
     try {
+      const title = memoryDraft.title.trim() || randomMemoryTitle();
       const payload = {
         pet_id: Number(memoryDraft.petId),
-        title: memoryDraft.title.trim(),
+        title,
         memory_date: memoryDraft.date,
         category: "daily_moment",
         scene: null,
@@ -2089,7 +2106,7 @@ export function App() {
       setMemoryFormOpen(false);
       setEditingMemoryId(null);
       setMemoryDraft(emptyMemoryDraft);
-      setToast(`Memory ${editingMemoryId ? "updated" : "saved"} in the database.`);
+      setToast(`Memory ${editingMemoryId ? "updated" : "saved"} as “${title}”.`);
     } catch (error) {
       const detail = error.details ? Object.values(error.details)[0] : null;
       setToast(detail || error.message);
