@@ -1,5 +1,10 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
 const TOKEN_KEY = "pawrise_access_token";
+export const AUTH_SESSION_EXPIRED_EVENT = "pawrise:session-expired";
+
+const AUTH_FAILURE_CODES = new Set(["AUTHORIZATION_REQUIRED", "INVALID_TOKEN", "TOKEN_EXPIRED"]);
+const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+const SUPPORTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
 
 export function setAccessToken(token) {
   sessionStorage.setItem(TOKEN_KEY, token);
@@ -11,6 +16,30 @@ export function clearAccessToken() {
 
 export function hasAccessToken() {
   return Boolean(sessionStorage.getItem(TOKEN_KEY));
+}
+
+function responseError(response, payload, fallbackMessage) {
+  const code = payload?.error?.code;
+  const sessionExpired = response.status === 401 && AUTH_FAILURE_CODES.has(code);
+
+  if (sessionExpired) {
+    clearAccessToken();
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent(AUTH_SESSION_EXPIRED_EVENT, {
+        detail: { message: "Your session has expired. Please log in again." },
+      }));
+    }
+  }
+
+  const error = new Error(
+    sessionExpired
+      ? "Your session has expired. Please log in again."
+      : payload?.error?.message ?? fallbackMessage,
+  );
+  error.status = response.status;
+  error.code = code;
+  error.details = payload?.error?.details;
+  return error;
 }
 
 export async function apiRequest(path, options = {}) {
@@ -37,19 +66,20 @@ export async function apiRequest(path, options = {}) {
 
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
-    if (response.status === 401) {
-      clearAccessToken();
-    }
-    const error = new Error(payload?.error?.message ?? `Request failed (${response.status}).`);
-    error.status = response.status;
-    error.details = payload?.error?.details;
-    throw error;
+    throw responseError(response, payload, `Request failed (${response.status}).`);
   }
 
   return payload?.data;
 }
 
 async function uploadImage(file) {
+  if (!file || !SUPPORTED_IMAGE_TYPES.has(file.type)) {
+    throw new Error("Choose a JPG, PNG, GIF, or WebP image. HEIC photos need to be converted first.");
+  }
+  if (file.size > MAX_IMAGE_SIZE_BYTES) {
+    throw new Error("Please choose an image smaller than 5 MB.");
+  }
+
   const formData = new FormData();
   formData.append("image", file);
   const token = sessionStorage.getItem(TOKEN_KEY);
@@ -67,7 +97,10 @@ async function uploadImage(file) {
 
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(payload?.error?.message ?? "The image could not be uploaded.");
+    const fallbackMessage = response.status === 413
+      ? "This image is too large. Choose an image smaller than 5 MB."
+      : "The image could not be uploaded.";
+    throw responseError(response, payload, fallbackMessage);
   }
   return payload.data;
 }
@@ -87,10 +120,7 @@ async function createMedicalRecord(formData) {
 
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
-    const error = new Error(payload?.error?.message ?? "The medical record could not be uploaded.");
-    error.status = response.status;
-    error.details = payload?.error?.details;
-    throw error;
+    throw responseError(response, payload, "The medical record could not be uploaded.");
   }
   return payload.data;
 }
@@ -107,7 +137,7 @@ async function getMedicalRecordDocument(id) {
   }
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
-    throw new Error(payload?.error?.message ?? "The original document could not be opened.");
+    throw responseError(response, payload, "The original document could not be opened.");
   }
   return response.blob();
 }
@@ -117,6 +147,7 @@ export const api = {
   register: (body) => apiRequest("/auth/register", { method: "POST", body }),
   login: (body) => apiRequest("/auth/login", { method: "POST", body }),
   me: () => apiRequest("/auth/me"),
+  updateMe: (body) => apiRequest("/auth/me", { method: "PATCH", body }),
   pets: {
     list: () => apiRequest("/pets"),
     create: (body) => apiRequest("/pets", { method: "POST", body }),

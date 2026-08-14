@@ -1,3 +1,5 @@
+from urllib.parse import urlparse
+
 from flask import Blueprint, request
 from flask_jwt_extended import (
     create_access_token,
@@ -139,3 +141,79 @@ def get_current_user():
             404,
         )
     return success_response(user.to_dict())
+
+
+@auth_bp.patch("/me")
+@jwt_required()
+def update_current_user():
+    user = current_user()
+    if user is None:
+        return error_response(
+            "USER_NOT_FOUND",
+            "The authenticated user no longer exists.",
+            404,
+        )
+
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return error_response(
+            "VALIDATION_ERROR",
+            "A JSON request body is required.",
+            400,
+        )
+
+    supported_fields = {"full_name", "avatar_url"}
+    if not supported_fields.intersection(payload):
+        return error_response(
+            "VALIDATION_ERROR",
+            "Provide a full name or avatar to update.",
+            400,
+        )
+
+    details = {}
+    next_full_name = user.full_name
+    next_avatar_url = user.avatar_url
+    if "full_name" in payload:
+        full_name = clean_string(payload.get("full_name"), max_length=100)
+        if full_name is None:
+            details["full_name"] = (
+                "Full name is required and must be 100 characters or fewer."
+            )
+        else:
+            next_full_name = full_name
+
+    if "avatar_url" in payload:
+        avatar_value = payload.get("avatar_url")
+        if avatar_value is None or (
+            isinstance(avatar_value, str) and not avatar_value.strip()
+        ):
+            next_avatar_url = None
+        else:
+            avatar_url = clean_string(avatar_value, max_length=500)
+            parsed_url = urlparse(avatar_url or "")
+            is_http_url = (
+                parsed_url.scheme in {"http", "https"}
+                and bool(parsed_url.netloc)
+                and parsed_url.path.startswith("/api/uploads/")
+            )
+            is_uploaded_path = bool(avatar_url) and avatar_url.startswith(
+                "/api/uploads/"
+            )
+            if avatar_url is None or not (is_http_url or is_uploaded_path):
+                details["avatar_url"] = "Avatar must be a valid uploaded image URL."
+            else:
+                next_avatar_url = avatar_url
+
+    if details:
+        db.session.rollback()
+        return error_response(
+            "VALIDATION_ERROR",
+            "Profile validation failed.",
+            400,
+            details,
+        )
+
+    user.full_name = next_full_name
+    user.avatar_url = next_avatar_url
+    db.session.commit()
+    return success_response(user.to_dict(), "Profile updated successfully.")

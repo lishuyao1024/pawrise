@@ -2,7 +2,7 @@
 
 PawRise is a full-stack pet health, care, and memory-management web application. It gives pet owners one organized place to manage pet profiles, care reminders, completed care history, memories, photos, and notification settings.
 
-> **Current status:** The React frontend is connected to the Flask REST API. Authentication, database-backed pet care features, Medical Records extraction and confirmation, linked reminders, settings, and authenticated uploads are implemented. The project is verified by 62 backend tests and a successful frontend production build.
+> **Current status:** The React frontend is connected to the Flask REST API. Authentication, database-backed pet care features, Medical Records extraction and confirmation, linked reminders, settings, and authenticated uploads are implemented. The project is verified by 101 backend tests and a successful frontend production build.
 
 ## Features
   
@@ -52,7 +52,7 @@ pawrise/
 |   |-- app/
 |   |   |-- models/       # SQLAlchemy database models
 |   |   `-- routes/       # Flask API blueprints
-|   |-- tests/            # 62 automated tests
+|   |-- tests/            # 101 automated tests
 |   |-- config.py
 |   |-- requirements.txt
 |   `-- run.py
@@ -86,7 +86,7 @@ flask --app run.py init-db
 python run.py
 ```
 
-Running `init-db` again is safe for the local SQLite database. It creates missing Medical Records tables and adds the reminder link without deleting existing PawRise data.
+Running `init-db` again is safe for the local SQLite database. It creates missing tables and applies additive schema upgrades, including reminder links, custom repeat intervals, and profile avatars, without deleting existing PawRise data.
 
 The API runs at `http://127.0.0.1:5000`. Check it with:
 
@@ -131,7 +131,7 @@ pytest
 Verified result:
 
 ```text
-62 passed
+101 passed
 ```
 
 Build the frontend from `pawrise/frontend`:

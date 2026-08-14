@@ -13,7 +13,7 @@ from ..api import (
 from ..extensions import db
 from ..models import CareReminder, Pet, UserSetting
 from ..models.base import utc_now
-from ..models.care_reminder import CARE_TYPES, REPEAT_RULES
+from ..models.care_reminder import CARE_TYPES, REPEAT_RULES, REPEAT_UNITS
 
 
 reminders_bp = Blueprint("reminders", __name__, url_prefix="/api/reminders")
@@ -25,6 +25,13 @@ REPEAT_MONTHS = {
     "every_6_months": 6,
     "yearly": 12,
 }
+
+REPEAT_DAYS = {
+    "weekly": 7,
+    "every_2_weeks": 14,
+}
+
+MAX_REPEAT_INTERVAL = 999
 
 
 def authenticated_user_id():
@@ -82,6 +89,29 @@ def parse_pet_id(value):
     return parsed if parsed > 0 else None
 
 
+def calculate_next_due_date(due_date, repeat_rule, repeat_interval=None, repeat_unit=None):
+    """Return the next calendar occurrence for a supported repeat rule."""
+    days = REPEAT_DAYS.get(repeat_rule)
+    if days is not None:
+        return due_date + timedelta(days=days)
+
+    months = REPEAT_MONTHS.get(repeat_rule)
+    if months is not None:
+        return add_months(due_date, months)
+
+    if repeat_rule != "custom":
+        return None
+    if repeat_interval is None or repeat_unit not in REPEAT_UNITS:
+        raise ValueError("Custom repeat settings are incomplete.")
+    if repeat_unit == "day":
+        return due_date + timedelta(days=repeat_interval)
+    if repeat_unit == "week":
+        return due_date + timedelta(weeks=repeat_interval)
+    if repeat_unit == "month":
+        return add_months(due_date, repeat_interval)
+    return add_months(due_date, repeat_interval * 12)
+
+
 def validate_reminder_payload(payload, user_id):
     if not isinstance(payload, dict):
         return None, {"body": "A JSON request body is required."}
@@ -116,16 +146,69 @@ def validate_reminder_payload(payload, user_id):
         )
     values["repeat_rule"] = repeat_rule
 
+    repeat_interval = payload.get("repeat_interval")
+    repeat_unit = clean_string(payload.get("repeat_unit"), max_length=10)
+    if repeat_rule == "custom":
+        if (
+            isinstance(repeat_interval, bool)
+            or not isinstance(repeat_interval, int)
+            or not 1 <= repeat_interval <= MAX_REPEAT_INTERVAL
+        ):
+            details["repeat_interval"] = (
+                f"Repeat interval must be a whole number from 1 to {MAX_REPEAT_INTERVAL}."
+            )
+        if repeat_unit not in REPEAT_UNITS:
+            details["repeat_unit"] = (
+                f"Repeat unit must be one of: {', '.join(REPEAT_UNITS)}."
+            )
+        values["repeat_interval"] = (
+            repeat_interval
+            if isinstance(repeat_interval, int)
+            and not isinstance(repeat_interval, bool)
+            and 1 <= repeat_interval <= MAX_REPEAT_INTERVAL
+            else None
+        )
+        values["repeat_unit"] = repeat_unit if repeat_unit in REPEAT_UNITS else None
+    else:
+        if repeat_interval is not None:
+            details["repeat_interval"] = (
+                "Repeat interval can only be used with the custom repeat rule."
+            )
+        if payload.get("repeat_unit") is not None:
+            details["repeat_unit"] = (
+                "Repeat unit can only be used with the custom repeat rule."
+            )
+        values["repeat_interval"] = None
+        values["repeat_unit"] = None
+
     try:
         due_date = parse_iso_date(payload.get("due_date"))
         if due_date is None:
             details["due_date"] = "Due date is required."
-        elif due_date <= date.today():
-            details["due_date"] = "Due date must be a future date."
+        elif due_date < date.today():
+            details["due_date"] = "Due date must be today or a future date."
         values["due_date"] = due_date
     except ValueError as exc:
         values["due_date"] = None
         details["due_date"] = str(exc)
+
+    if (
+        not details.get("repeat_rule")
+        and not details.get("repeat_interval")
+        and not details.get("repeat_unit")
+        and values.get("due_date") is not None
+    ):
+        try:
+            calculate_next_due_date(
+                values["due_date"],
+                values["repeat_rule"],
+                values["repeat_interval"],
+                values["repeat_unit"],
+            )
+        except (OverflowError, ValueError):
+            details["repeat_interval"] = (
+                "The chosen repeat interval goes beyond the supported calendar range."
+            )
 
     notes = payload.get("notes")
     if notes in (None, ""):
@@ -353,17 +436,32 @@ def complete_reminder(reminder_id):
             400,
         )
 
-    reminder.completed_at = completed_at
     next_reminder = None
-    months = REPEAT_MONTHS.get(reminder.repeat_rule)
-    if months is not None:
+    try:
+        next_due_date = calculate_next_due_date(
+            reminder.due_date,
+            reminder.repeat_rule,
+            reminder.repeat_interval,
+            reminder.repeat_unit,
+        )
+    except (OverflowError, ValueError):
+        return error_response(
+            "RECURRENCE_DATE_OUT_OF_RANGE",
+            "The next repeat date is outside the supported calendar range. Edit the reminder interval and try again.",
+            409,
+        )
+
+    reminder.completed_at = completed_at
+    if next_due_date is not None:
         next_reminder = CareReminder(
             pet_id=reminder.pet_id,
             source_reminder=reminder,
             care_type=reminder.care_type,
             custom_label=reminder.custom_label,
-            due_date=add_months(reminder.due_date, months),
+            due_date=next_due_date,
             repeat_rule=reminder.repeat_rule,
+            repeat_interval=reminder.repeat_interval,
+            repeat_unit=reminder.repeat_unit,
             notes=reminder.notes,
         )
         db.session.add(next_reminder)

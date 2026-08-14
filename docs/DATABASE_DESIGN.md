@@ -138,6 +138,8 @@ Stores future care reminders and completed Care History items in the same table.
 | `custom_label` | VARCHAR(100) | No | NULL | User-defined label when `care_type` is `other` |
 | `due_date` | DATE | Yes | Indexed | Planned care date |
 | `repeat_rule` | VARCHAR(30) | Yes | Default `none` | Recurrence rule |
+| `repeat_interval` | INTEGER | No | NULL | User-selected interval from 1 to 999 when `repeat_rule` is `custom` |
+| `repeat_unit` | VARCHAR(10) | No | NULL | `day`, `week`, `month`, or `year` when `repeat_rule` is `custom` |
 | `notes` | TEXT | No | NULL | Reminder notes |
 | `completed_at` | DATETIME | No | NULL, indexed | Time the reminder was completed |
 | `created_at` | DATETIME | Yes | Current UTC time | Record creation time |
@@ -151,6 +153,8 @@ deworming
 checkup
 medication
 weight
+activity
+grooming
 other
 ```
 
@@ -160,12 +164,19 @@ The UI labels `other` as **Custom**. A custom reminder stores the user's visible
 
 ```text
 none
+weekly
+every_2_weeks
 monthly
 every_2_months
 every_3_months
 every_6_months
 yearly
+custom
 ```
+
+For `custom`, both `repeat_interval` and `repeat_unit` are required. For every
+other rule they remain `NULL`. For example, every three weeks is stored as
+`repeat_rule = custom`, `repeat_interval = 3`, and `repeat_unit = week`.
 
 #### Status Calculation
 
@@ -420,6 +431,8 @@ CREATE TABLE care_reminders (
     custom_label VARCHAR(100),
     due_date DATE NOT NULL,
     repeat_rule VARCHAR(30) NOT NULL DEFAULT 'none',
+    repeat_interval INTEGER,
+    repeat_unit VARCHAR(10),
     notes TEXT,
     completed_at DATETIME,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -431,17 +444,36 @@ CREATE TABLE care_reminders (
             'checkup',
             'medication',
             'weight',
+            'activity',
+            'grooming',
             'other'
         )
     ),
     CONSTRAINT ck_reminders_repeat_rule CHECK (
         repeat_rule IN (
             'none',
+            'weekly',
+            'every_2_weeks',
             'monthly',
             'every_2_months',
             'every_3_months',
             'every_6_months',
-            'yearly'
+            'yearly',
+            'custom'
+        )
+    ),
+    CONSTRAINT ck_reminders_custom_repeat CHECK (
+        (
+            repeat_rule = 'custom'
+            AND repeat_interval IS NOT NULL
+            AND repeat_interval BETWEEN 1 AND 999
+            AND repeat_unit IS NOT NULL
+            AND repeat_unit IN ('day', 'week', 'month', 'year')
+        )
+        OR (
+            repeat_rule <> 'custom'
+            AND repeat_interval IS NULL
+            AND repeat_unit IS NULL
         )
     ),
     FOREIGN KEY (pet_id) REFERENCES pets(id) ON DELETE CASCADE,
@@ -630,8 +662,8 @@ The backend implementation will use the following workflow:
 2. Configure the SQLite database path.
 3. Initialize SQLAlchemy and Flask-Migrate.
 4. Define the six SQLAlchemy domain models plus user settings.
-5. Run `flask --app run.py init-db` to create missing tables and apply the safe SQLite reminder-link upgrade.
-6. Keep existing local data while adding `medical_records` and `care_reminders.medical_record_id`.
+5. Run `flask --app run.py init-db` to create missing tables and apply safe, idempotent SQLite schema upgrades.
+6. Keep existing local data while adding Medical Records links, custom reminder intervals, profile avatars, constraints, and indexes.
 7. Optionally run a seed command to create Dami, Roro, reminders, and memories for demonstration.
 8. Run automated tests against a separate temporary test database.
 

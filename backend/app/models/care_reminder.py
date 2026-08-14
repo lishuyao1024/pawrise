@@ -8,17 +8,24 @@ CARE_TYPES = (
     "checkup",
     "medication",
     "weight",
+    "activity",
+    "grooming",
     "other",
 )
 
 REPEAT_RULES = (
     "none",
+    "weekly",
+    "every_2_weeks",
     "monthly",
     "every_2_months",
     "every_3_months",
     "every_6_months",
     "yearly",
+    "custom",
 )
+
+REPEAT_UNITS = ("day", "week", "month", "year")
 
 
 class CareReminder(TimestampMixin, db.Model):
@@ -31,6 +38,17 @@ class CareReminder(TimestampMixin, db.Model):
         db.CheckConstraint(
             f"repeat_rule IN {REPEAT_RULES}",
             name="ck_reminders_repeat_rule",
+        ),
+        db.CheckConstraint(
+            "((repeat_rule = 'custom' "
+            "AND repeat_interval IS NOT NULL "
+            "AND repeat_interval BETWEEN 1 AND 999 "
+            "AND repeat_unit IS NOT NULL "
+            f"AND repeat_unit IN {REPEAT_UNITS}) "
+            "OR (repeat_rule <> 'custom' "
+            "AND repeat_interval IS NULL "
+            "AND repeat_unit IS NULL))",
+            name="ck_reminders_custom_repeat",
         ),
         db.Index("ix_reminders_pet_id", "pet_id"),
         db.Index("ix_reminders_due_date", "due_date"),
@@ -62,6 +80,8 @@ class CareReminder(TimestampMixin, db.Model):
     custom_label = db.Column(db.String(100))
     due_date = db.Column(db.Date, nullable=False)
     repeat_rule = db.Column(db.String(30), nullable=False, default="none")
+    repeat_interval = db.Column(db.Integer)
+    repeat_unit = db.Column(db.String(10))
     notes = db.Column(db.Text)
     completed_at = db.Column(db.DateTime(timezone=True))
 
@@ -84,6 +104,8 @@ class CareReminder(TimestampMixin, db.Model):
             "custom_label": self.custom_label,
             "due_date": self.due_date.isoformat(),
             "repeat_rule": self.repeat_rule,
+            "repeat_interval": self.repeat_interval,
+            "repeat_unit": self.repeat_unit,
             "notes": self.notes,
             "completed_at": isoformat_utc(self.completed_at),
             "created_at": isoformat_utc(self.created_at),

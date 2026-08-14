@@ -571,6 +571,8 @@ deworming
 checkup
 medication
 weight
+activity
+grooming
 other
 ```
 
@@ -580,12 +582,20 @@ Allowed `repeat_rule` values:
 
 ```text
 none
+weekly
+every_2_weeks
 monthly
 every_2_months
 every_3_months
 every_6_months
 yearly
+custom
 ```
+
+`custom` also requires `repeat_interval` (a whole number from 1 to 999) and
+`repeat_unit` (`day`, `week`, `month`, or `year`). Fixed rules and `none` leave
+those two fields `null` or omit them. Completing a custom repeating reminder
+creates the next occurrence from the original due date using the saved interval.
 
 ### 8.1 Create Care Reminder
 
@@ -602,6 +612,8 @@ POST /api/reminders
   "custom_label": null,
   "due_date": "2026-08-24",
   "repeat_rule": "every_2_months",
+  "repeat_interval": null,
+  "repeat_unit": null,
   "notes": "Flea prevention refill."
 }
 ```
