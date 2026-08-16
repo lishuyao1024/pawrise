@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Bell, CalendarDays, Cat, CheckCircle2, ChevronRight, Clock3, Dog, Download, Eye, EyeOff, FileText, Footprints, HeartPulse, LogOut, Mars, PawPrint, Pencil, Pill, Plus, Repeat2, Scale, Scissors, ShieldCheck, Sparkles, Stethoscope, Syringe, Trash2, Upload, UserRound, Venus, Worm, X } from "lucide-react";
+import { ArrowLeft, Bell, CalendarDays, Cat, CheckCircle2, ChevronRight, Clock3, Dog, Download, Eye, EyeOff, FileText, Footprints, Globe2, HeartPulse, LogOut, Mars, PawPrint, Pencil, Pill, Plus, Repeat2, Scale, Scissors, ShieldCheck, Sparkles, Stethoscope, Syringe, Trash2, Upload, UserRound, Users, Venus, Worm, X } from "lucide-react";
 import authBrandPanel from "./assets/auth-brand-panel.png";
 import damiMemory from "./assets/dami-memory.png";
 import damiProfile from "./assets/dami-profile.png";
 import roroMemory from "./assets/roro-memory.png";
 import roroProfile from "./assets/roro-profile.png";
 import { api, AUTH_SESSION_EXPIRED_EVENT, clearAccessToken, hasAccessToken, setAccessToken } from "./api.js";
+import CommunityView from "./CommunityView.jsx";
 
 const CAT_DEFAULT_PHOTOS = [
   damiProfile,
@@ -68,6 +69,7 @@ const primaryNavigation = [
   { page: "Care Planner", label: "Care Planner", Icon: CalendarDays },
   { page: "Medical Records", label: "Medical Records", Icon: FileText },
   { page: "Memories", label: "Memories", Icon: Sparkles },
+  { page: "Community", label: "Community", Icon: Users },
   { page: "My Pets", label: "My Pets", Icon: PawPrint },
   { page: "Settings", label: "Settings", Icon: UserRound },
 ];
@@ -194,6 +196,8 @@ const emptyMemoryDraft = {
   date: todayIso(),
   image: damiMemory,
   photoName: "",
+  description: "",
+  shareToCommunity: false,
 };
 
 const defaultMemoryTitles = [
@@ -359,6 +363,7 @@ function normalizeUser(user = {}) {
     name: user.full_name || "",
     email: user.email || "",
     avatarUrl: user.avatar_url || "",
+    role: user.role || "user",
   };
 }
 
@@ -1806,6 +1811,26 @@ function MemoryTimelineView({
                       || (editingMemoryId ? "The current photo will be kept unless you choose another." : "Required. JPG, PNG, GIF, or WebP; maximum 5 MB.")}
                 </small>
               </label>
+              <label className="wide-field memory-thought-field">
+                Your thought
+                <textarea
+                  maxLength="500"
+                  rows="3"
+                  value={memoryDraft.description}
+                  onChange={(event) => setMemoryDraft((current) => ({ ...current, description: event.target.value }))}
+                  placeholder="What made this moment special?"
+                />
+                <small>{memoryDraft.description.length}/500</small>
+              </label>
+              <label className="wide-field memory-community-toggle">
+                <input
+                  checked={memoryDraft.shareToCommunity}
+                  type="checkbox"
+                  onChange={(event) => setMemoryDraft((current) => ({ ...current, shareToCommunity: event.target.checked }))}
+                />
+                <Globe2 aria-hidden="true" />
+                <span><strong>Share to Community</strong><small>Off by default. Other members see this moment only when you choose to share it.</small></span>
+              </label>
               <button className="primary-button wide-field" disabled={photoUploading} type="submit">
                 {photoUploading ? "Uploading..." : editingMemoryId ? "Update memory" : "Save memory"}
               </button>
@@ -2396,7 +2421,7 @@ export function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isRestoring, setIsRestoring] = useState(hasAccessToken());
   const [showPetOnboarding, setShowPetOnboarding] = useState(false);
-  const [user, setUser] = useState({ name: "", email: "", avatarUrl: "" });
+  const [user, setUser] = useState({ name: "", email: "", avatarUrl: "", role: "user" });
   const [activePage, setActivePage] = useState("Home");
   const [pets, setPets] = useState([]);
   const [selectedPet, setSelectedPet] = useState("all");
@@ -2495,7 +2520,7 @@ export function App() {
 
   function openPage(page) {
     setActivePage(page);
-    setToast(["My Pets", "Care Planner", "Medical Records", "Memories", "Settings"].includes(page) ? `${page} opened.` : `${page} module is ready to build next.`);
+    setToast(["My Pets", "Care Planner", "Medical Records", "Memories", "Community", "Settings"].includes(page) ? `${page} opened.` : `${page} module is ready to build next.`);
   }
 
   async function authenticate(credentials) {
@@ -2516,7 +2541,7 @@ export function App() {
   function resetAuthenticatedState(notice = "") {
     clearAccessToken();
     setIsAuthenticated(false);
-    setUser({ name: "", email: "", avatarUrl: "" });
+    setUser({ name: "", email: "", avatarUrl: "", role: "user" });
     setPets([]);
     setReminders([]);
     setCareHistory([]);
@@ -2740,6 +2765,8 @@ export function App() {
       title: memory.title,
       date: memory.date,
       image: memory.image,
+      description: memory.description || "",
+      shareToCommunity: false,
     });
     setToast(`Editing “${memory.title}”.`);
     window.setTimeout(() => {
@@ -2769,19 +2796,22 @@ export function App() {
         memory_date: memoryDraft.date,
         category: "daily_moment",
         scene: null,
-        description: null,
+        description: memoryDraft.description.trim() || null,
         image_url: memoryDraft.image?.startsWith("http") ? memoryDraft.image : null,
       };
-      if (editingMemoryId) {
-        await api.memories.update(editingMemoryId, payload);
-      } else {
-        await api.memories.create(payload);
+      const savedMemory = editingMemoryId
+        ? await api.memories.update(editingMemoryId, payload)
+        : await api.memories.create(payload);
+      if (memoryDraft.shareToCommunity) {
+        await api.community.create({ memory_id: savedMemory.id });
       }
       await loadAllData();
       setMemoryFormOpen(false);
       setEditingMemoryId(null);
       setMemoryDraft(emptyMemoryDraft);
-      setToast(`Memory ${editingMemoryId ? "updated" : "saved"} as “${title}”.`);
+      setToast(memoryDraft.shareToCommunity
+        ? `Memory saved and shared to Community as “${title}”.`
+        : `Memory ${editingMemoryId ? "updated" : "saved"} as “${title}”.`);
     } catch (error) {
       const detail = error.details ? Object.values(error.details)[0] : null;
       setToast(detail || error.message);
@@ -2834,6 +2864,11 @@ export function App() {
 
   return (
     <main className="app-shell">
+      <div className="pawrise-ambient" aria-hidden="true">
+        <span className="pawrise-ambient-orb pawrise-ambient-coral" />
+        <span className="pawrise-ambient-orb pawrise-ambient-sage" />
+        <span className="pawrise-ambient-orb pawrise-ambient-rose" />
+      </div>
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark" aria-hidden="true"><PawPrint /></div>
@@ -2951,8 +2986,17 @@ export function App() {
             startEditMemory={startEditMemory}
           />
         )}
+        {activePage === "Community" && (
+          <CommunityView
+            openPage={openPage}
+            pets={pets}
+            refreshData={loadAllData}
+            setToast={setToast}
+            user={user}
+          />
+        )}
         {activePage === "Settings" && <SettingsView onLogout={logout} onUserUpdate={setUser} setToast={setToast} user={user} />}
-        {!["Home", "My Pets", "Care Planner", "Medical Records", "Memories", "Settings"].includes(activePage) && <PlaceholderPage openPage={openPage} page={activePage} />}
+        {!["Home", "My Pets", "Care Planner", "Medical Records", "Memories", "Community", "Settings"].includes(activePage) && <PlaceholderPage openPage={openPage} page={activePage} />}
 
         {toast && (
           <div className="toast" role="status" aria-live="polite">

@@ -168,6 +168,17 @@ export const api = {
     update: (id, body) => apiRequest(`/memories/${id}`, { method: "PUT", body }),
     remove: (id) => apiRequest(`/memories/${id}`, { method: "DELETE" }),
   },
+  community: {
+    list: () => apiRequest("/community/posts"),
+    create: (body) => apiRequest("/community/posts", { method: "POST", body }),
+    remove: (id) => apiRequest(`/community/posts/${id}`, { method: "DELETE" }),
+    moderate: (id, status) => apiRequest(`/community/posts/${id}/moderation`, { method: "PATCH", body: { status } }),
+    like: (id) => apiRequest(`/community/posts/${id}/likes`, { method: "POST", body: {} }),
+    unlike: (id) => apiRequest(`/community/posts/${id}/likes`, { method: "DELETE" }),
+    report: (id, reason) => apiRequest(`/community/posts/${id}/reports`, { method: "POST", body: { reason } }),
+    block: (userId) => apiRequest(`/community/blocks/${userId}`, { method: "POST", body: {} }),
+    unblock: (userId) => apiRequest(`/community/blocks/${userId}`, { method: "DELETE" }),
+  },
   medicalRecords: {
     list: () => apiRequest("/medical-records"),
     get: (id) => apiRequest(`/medical-records/${id}`),

@@ -11,6 +11,7 @@ class User(TimestampMixin, db.Model):
     email = db.Column(db.String(255), nullable=False, unique=True, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
     avatar_url = db.Column(db.String(500))
+    role = db.Column(db.String(20), nullable=False, default="user")
 
     pets = db.relationship(
         "Pet",
@@ -38,6 +39,7 @@ class User(TimestampMixin, db.Model):
             "full_name": self.full_name,
             "email": self.email,
             "avatar_url": self.avatar_url,
+            "role": self.role,
             "created_at": isoformat_utc(self.created_at),
             "updated_at": isoformat_utc(self.updated_at),
         }

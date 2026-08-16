@@ -12,6 +12,10 @@ EXPECTED_TABLES = {
     "memories",
     "medical_records",
     "user_settings",
+    "community_posts",
+    "community_likes",
+    "community_reports",
+    "community_blocks",
 }
 
 EXPECTED_INDEXES = {
@@ -25,6 +29,10 @@ EXPECTED_INDEXES = {
     "ix_memories_memory_date",
     "ix_medical_records_pet_id",
     "ix_medical_records_visit_date",
+    "ix_community_posts_created_at",
+    "ix_community_posts_user_id",
+    "ix_community_posts_pet_id",
+    "ix_community_likes_post_id",
 }
 
 
@@ -34,11 +42,11 @@ def test_database_contains_core_tables(app):
         assert set(inspector.get_table_names()) == EXPECTED_TABLES
 
 
-def test_users_table_contains_profile_avatar(app):
+def test_users_table_contains_profile_and_community_role(app):
     with app.app_context():
         inspector = inspect(db.engine)
         user_columns = {column["name"] for column in inspector.get_columns("users")}
-        assert "avatar_url" in user_columns
+        assert {"avatar_url", "role"} <= user_columns
 
 
 def test_reminders_table_contains_custom_repeat_fields_and_constraints(app):

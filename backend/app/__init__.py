@@ -34,6 +34,7 @@ def create_app(config_object=None):
 
     from . import models  # noqa: F401
     from .routes.auth import auth_bp
+    from .routes.community import community_bp
     from .routes.dashboard import dashboard_bp
     from .routes.health import health_bp
     from .routes.memories import memories_bp
@@ -44,6 +45,7 @@ def create_app(config_object=None):
     from .routes.uploads import uploads_bp
 
     app.register_blueprint(auth_bp)
+    app.register_blueprint(community_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(health_bp)
     app.register_blueprint(memories_bp)
@@ -87,6 +89,19 @@ def register_cli_commands(app):
         upgrade_existing_sqlite_schema()
         click.echo(f"Initialized database at {app.config['SQLALCHEMY_DATABASE_URI']}.")
 
+    @app.cli.command("make-admin")
+    @click.argument("email")
+    def make_admin_command(email):
+        """Grant community moderation access to a trusted PawRise account."""
+        from .models import User
+
+        user = User.query.filter(db.func.lower(User.email) == email.strip().lower()).first()
+        if user is None:
+            raise click.ClickException("No PawRise account uses that email address.")
+        user.role = "admin"
+        db.session.commit()
+        click.echo(f"Granted administrator access to {user.email}.")
+
 
 def upgrade_existing_sqlite_schema():
     """Apply narrow additive upgrades to existing local SQLite databases.
@@ -108,6 +123,13 @@ def upgrade_existing_sqlite_schema():
             if "avatar_url" not in user_columns:
                 connection.execute(
                     text("ALTER TABLE users ADD COLUMN avatar_url VARCHAR(500)")
+                )
+            if "role" not in user_columns:
+                connection.execute(
+                    text(
+                        "ALTER TABLE users ADD COLUMN role VARCHAR(20) "
+                        "NOT NULL DEFAULT 'user'"
+                    )
                 )
 
         if "care_reminders" in table_names:
