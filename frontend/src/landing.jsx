@@ -10,7 +10,9 @@ import {
   PawPrint,
   Sparkles,
   Upload,
+  UsersRound,
 } from "lucide-react";
+import communityPhoto from "./assets/dami-memory.png";
 import "./landing.css";
 
 const LOGIN_URL = "/app.html?mode=login";
@@ -22,7 +24,7 @@ const PET_IMAGES = {
 };
 
 function Brand() {
-  return <a className="landing-brand" href="#top"><PawPrint aria-hidden="true" /><span>PawRise</span></a>;
+  return <a className="landing-brand" href="#top"><img alt="" aria-hidden="true" src="/pawrise-mark-v2.png" /><span>PawRise</span></a>;
 }
 
 function LandingHeader() {
@@ -72,7 +74,7 @@ function Hero() {
         <p>Turn important instructions into an organized plan.</p>
       </aside>
 
-      <div className="pet-stage" aria-label="Three pets representing PawRise care, records, and memories">
+      <div className="pet-stage" aria-label="Three pets representing PawRise profiles, care, and medical records">
         <article className="pet-panel pet-panel-left">
           <img alt="A small dog peeking over the PawRise care panel" src={PET_IMAGES.left} />
           <div className="pet-panel-copy">
@@ -88,10 +90,10 @@ function Hero() {
           </div>
         </article>
         <article className="pet-panel pet-panel-right">
-          <img alt="A cat peeking over the PawRise memories panel" src={PET_IMAGES.right} />
+          <img alt="A cat peeking over the PawRise profile panel" src={PET_IMAGES.right} />
           <div className="pet-panel-copy">
-            <strong>Remember more</strong>
-            <span>Save the moments that matter.</span>
+            <strong>Know them better</strong>
+            <span>Keep important profile details close.</span>
           </div>
         </article>
       </div>
@@ -108,14 +110,14 @@ function ProblemSection() {
       <div className="problem-grid">
         <h2>Keep pet care together.</h2>
         <div className="problem-copy">
-          <p>Appointment cards, medication labels, phone notes, and photos are easy to lose track of. PawRise brings the important parts of your pet's life into one simple journal.</p>
+          <p>Appointment cards, medication labels, and phone notes are easy to lose track of. PawRise brings the important parts of your pet's care into one simple journal.</p>
           <a className="arrow-link" href="#features">See what stays together <ArrowRight aria-hidden="true" /></a>
         </div>
       </div>
       <div className="problem-flow" aria-label="From scattered information to one PawRise journal">
         <div><CalendarDays aria-hidden="true" /><span>Care dates</span></div>
         <div><FileText aria-hidden="true" /><span>Vet instructions</span></div>
-        <div><Heart aria-hidden="true" /><span>Everyday memories</span></div>
+        <div><PawPrint aria-hidden="true" /><span>Pet profiles</span></div>
         <ArrowRight className="flow-arrow" aria-hidden="true" />
         <div className="flow-result"><PawPrint aria-hidden="true" /><span>One PawRise journal</span></div>
       </div>
@@ -151,14 +153,21 @@ const features = [
     ),
   },
   {
-    icon: Heart,
-    eyebrow: "MEMORIES",
-    title: "Keep every moment.",
-    body: "Save a title, date, and photo for the small days and milestones you never want to forget.",
+    icon: UsersRound,
+    eyebrow: "COMMUNITY",
+    title: "See other pets, share your own.",
+    body: "Post a photo of your pet for everyone on PawRise, and scroll through what other owners are sharing today.",
     preview: (
-      <div className="feature-preview memory-preview">
-        <div className="memory-photo"><Heart aria-hidden="true" /></div>
-        <div><small>August 09</small><strong>First sunny window nap</strong><span>Mochi</span></div>
+      <div className="feature-preview community-preview">
+        <div className="community-photo-card">
+          <img alt="Mochi relaxing in the morning sun" src={communityPhoto} />
+          <span className="community-pet-tag"><PawPrint aria-hidden="true" /> Mochi</span>
+        </div>
+        <div className="community-post-copy">
+          <small>Shared by Elena R.</small>
+          <strong>First sunny<br />window nap</strong>
+          <span><Heart aria-hidden="true" /> 24 owners liked this</span>
+        </div>
       </div>
     ),
   },
@@ -170,7 +179,7 @@ function FeaturesSection() {
       <div className="section-heading centered">
         <span className="section-kicker">WHAT STAYS TOGETHER</span>
         <h2>Built around real pet life.</h2>
-        <p>Only the tools that help you care, organize, and remember.</p>
+        <p>Only the tools that help you care and organize.</p>
       </div>
       <div className="feature-list">
         {features.map((feature, index) => {
@@ -202,7 +211,7 @@ function HowSection() {
       <div className="steps">
         <article><b>01</b><PawPrint /><h3>Add your pet</h3><p>Create a profile with the essentials you want close at hand.</p></article>
         <article><b>02</b><CalendarDays /><h3>Plan or upload</h3><p>Add a care date or organize the instructions from a vet visit.</p></article>
-        <article><b>03</b><Heart /><h3>Keep their story</h3><p>Return for what is due and save the moments in between.</p></article>
+        <article><b>03</b><UsersRound /><h3>Share the good days</h3><p>Post a photo for the community and see how other pets are doing.</p></article>
       </div>
     </section>
   );
@@ -212,8 +221,8 @@ function FinalCta() {
   return (
     <section className="final-cta">
       <PawPrint aria-hidden="true" />
-      <span>CARE TODAY. MEMORIES FOR LIFE.</span>
-      <h2>Give their whole story one warm place to live.</h2>
+      <span>CARE TODAY. STAY ORGANIZED.</span>
+      <h2>Give their care one clear place to live.</h2>
       <a className="coral-button" href={SIGNUP_URL}>Create your PawRise journal <ArrowRight aria-hidden="true" /></a>
     </section>
   );
