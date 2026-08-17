@@ -7,7 +7,6 @@ import {
   Flag,
   Globe2,
   Heart,
-  LockKeyhole,
   PawPrint,
   Plus,
   Search,
@@ -23,7 +22,6 @@ const emptyDraft = {
   petId: "",
   title: "",
   thought: "",
-  visibility: "public",
   image: "",
   photoName: "",
 };
@@ -162,13 +160,9 @@ function CommunityComposer({ onClose, onSaved, pets, setToast }) {
         description: draft.thought.trim(),
         image_url: draft.image,
       });
-      if (draft.visibility === "public") {
-        await api.community.create({ memory_id: memory.id });
-      }
+      await api.community.create({ memory_id: memory.id });
       await onSaved();
-      setToast(draft.visibility === "public"
-        ? "Your moment is now visible in Community."
-        : "Saved privately to Memories.");
+      setToast("Your moment is now visible in Community.");
       onClose();
     } catch (error) {
       const detail = error.details ? Object.values(error.details)[0] : null;
@@ -199,12 +193,8 @@ function CommunityComposer({ onClose, onSaved, pets, setToast }) {
             <label>Pet<select required value={draft.petId} onChange={(event) => setDraft((current) => ({ ...current, petId: event.target.value }))}>{pets.map((pet) => <option key={pet.id} value={pet.id}>{pet.name}</option>)}</select></label>
             <label>Title<input maxLength="150" required value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} placeholder="What made this moment special?" /></label>
             <label>Your thought<textarea maxLength="500" required rows="5" value={draft.thought} onChange={(event) => setDraft((current) => ({ ...current, thought: event.target.value }))} placeholder="Write a few words about this moment…" /><small>{draft.thought.length}/500</small></label>
-            <fieldset>
-              <legend>Who can see this?</legend>
-              <button aria-pressed={draft.visibility === "public"} className={draft.visibility === "public" ? "selected" : ""} onClick={() => setDraft((current) => ({ ...current, visibility: "public" }))} type="button"><Globe2 aria-hidden="true" /><span><strong>Community</strong><small>Visible to PawRise members</small></span></button>
-              <button aria-pressed={draft.visibility === "private"} className={draft.visibility === "private" ? "selected" : ""} onClick={() => setDraft((current) => ({ ...current, visibility: "private" }))} type="button"><LockKeyhole aria-hidden="true" /><span><strong>Only me</strong><small>Keep it as a private memory</small></span></button>
-            </fieldset>
-            <button className="primary-button community-publish-button" disabled={saving || uploading} type="submit">{saving ? "Saving..." : draft.visibility === "public" ? "Share with Community" : "Save privately"}</button>
+            <p className="community-visibility-note"><Globe2 aria-hidden="true" />This moment will be visible to PawRise members.</p>
+            <button className="primary-button community-publish-button" disabled={saving || uploading} type="submit">{saving ? "Saving..." : "Share with Community"}</button>
           </form>
         </div>
       </section>
@@ -251,11 +241,11 @@ export default function CommunityView({ openPage, pets, refreshData, setToast, u
   }
 
   async function deletePost(post) {
-    if (!window.confirm(`Remove “${post.title}” from Community? Your private Memory will be kept.`)) return;
+    if (!window.confirm(`Remove “${post.title}” from Community?`)) return;
     try {
       await api.community.remove(post.id);
       setPosts((current) => current.filter((item) => item.id !== post.id));
-      setToast("Community post removed. The private Memory is still saved.");
+      setToast("Community post removed.");
     } catch (error) { setToast(error.message); }
   }
 
@@ -314,7 +304,7 @@ export default function CommunityView({ openPage, pets, refreshData, setToast, u
         {loading ? <div className="community-empty"><PawPrint aria-hidden="true" /><h2>Loading Community…</h2></div> : visiblePosts.length ? (
           <div className="community-post-grid">{visiblePosts.map((post) => <PostCard key={post.id} post={post} onBlock={blockAuthor} onDelete={deletePost} onHide={hidePost} onLike={toggleLike} onReport={reportPost} user={user} />)}</div>
         ) : (
-          <div className="community-empty"><PawPrint aria-hidden="true" /><h2>{view === "mine" ? "No shared moments yet" : posts.length ? "No stories match this view" : "Community is ready for its first story"}</h2><p>Private Memories stay private. Share only the moments you choose.</p><button className="primary-button" onClick={() => pets.length ? setComposerOpen(true) : openPage("My Pets")} type="button">{pets.length ? "Share a moment" : "Add a pet first"}</button></div>
+          <div className="community-empty"><PawPrint aria-hidden="true" /><h2>{view === "mine" ? "No shared moments yet" : posts.length ? "No stories match this view" : "Community is ready for its first story"}</h2><p>Share pet moments with other PawRise members.</p><button className="primary-button" onClick={() => pets.length ? setComposerOpen(true) : openPage("My Pets")} type="button">{pets.length ? "Share a moment" : "Add a pet first"}</button></div>
         )}
       </section>
       {composerOpen && <CommunityComposer onClose={() => setComposerOpen(false)} onSaved={afterPublish} pets={pets} setToast={setToast} />}
