@@ -26,6 +26,23 @@ const emptyDraft = {
   photoName: "",
 };
 
+const RANDOM_COMMUNITY_TITLES = [
+  "A Little Moment of Joy",
+  "Today's Sweetest Memory",
+  "Life Is Better With Paws",
+  "A Perfect Day Together",
+  "Small Paws, Big Happiness",
+  "Another Happy PawRise Moment",
+  "My Favorite Little Companion",
+  "A Memory Worth Sharing",
+  "Pure Love, Four Paws",
+  "The Best Part of My Day",
+];
+
+function randomCommunityTitle() {
+  return RANDOM_COMMUNITY_TITLES[Math.floor(Math.random() * RANDOM_COMMUNITY_TITLES.length)];
+}
+
 function initials(name = "PawRise") {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
 }
@@ -145,15 +162,16 @@ function CommunityComposer({ onClose, onSaved, pets, setToast }) {
 
   async function save(event) {
     event.preventDefault();
-    if (!draft.petId || !draft.title.trim() || !draft.thought.trim() || !draft.image) {
-      setToast("Pet, photo, title, and your thought are required.");
+    if (!draft.petId || !draft.image) {
+      setToast("Pet and photo are required.");
       return;
     }
+    const title = draft.title.trim() || randomCommunityTitle();
     setSaving(true);
     try {
       const memory = await api.memories.create({
         pet_id: Number(draft.petId),
-        title: draft.title.trim(),
+        title,
         memory_date: localDateIso(),
         category: "daily_moment",
         scene: null,
@@ -191,8 +209,8 @@ function CommunityComposer({ onClose, onSaved, pets, setToast }) {
           </div>
           <form onSubmit={save}>
             <label>Pet<select required value={draft.petId} onChange={(event) => setDraft((current) => ({ ...current, petId: event.target.value }))}>{pets.map((pet) => <option key={pet.id} value={pet.id}>{pet.name}</option>)}</select></label>
-            <label>Title<input maxLength="150" required value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} placeholder="What made this moment special?" /></label>
-            <label>Your thought<textarea maxLength="500" required rows="5" value={draft.thought} onChange={(event) => setDraft((current) => ({ ...current, thought: event.target.value }))} placeholder="Write a few words about this moment…" /><small>{draft.thought.length}/500</small></label>
+            <label>Title<input maxLength="150" value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Optional — we'll create one if left blank" /></label>
+            <label>Your thought<textarea maxLength="500" rows="5" value={draft.thought} onChange={(event) => setDraft((current) => ({ ...current, thought: event.target.value }))} placeholder="Optional — write a few words about this moment…" /><small>{draft.thought.length}/500</small></label>
             <p className="community-visibility-note"><Globe2 aria-hidden="true" />This moment will be visible to PawRise members.</p>
             <button className="primary-button community-publish-button" disabled={saving || uploading} type="submit">{saving ? "Saving..." : "Share with Community"}</button>
           </form>

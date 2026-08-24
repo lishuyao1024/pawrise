@@ -179,6 +179,13 @@ export const api = {
     block: (userId) => apiRequest(`/community/blocks/${userId}`, { method: "POST", body: {} }),
     unblock: (userId) => apiRequest(`/community/blocks/${userId}`, { method: "DELETE" }),
   },
+  admin: {
+    me: () => apiRequest("/admin/me"),
+    posts: () => apiRequest("/admin/posts"),
+    users: () => apiRequest("/admin/users"),
+    user: (id) => apiRequest(`/admin/users/${id}`),
+    updateReport: (id, status) => apiRequest(`/admin/reports/${id}`, { method: "PATCH", body: { status } }),
+  },
   medicalRecords: {
     list: () => apiRequest("/medical-records"),
     get: (id) => apiRequest(`/medical-records/${id}`),

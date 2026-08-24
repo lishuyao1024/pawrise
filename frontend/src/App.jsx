@@ -5,6 +5,7 @@ import damiProfile from "./assets/dami-profile.png";
 import roroProfile from "./assets/roro-profile.png";
 import { api, AUTH_SESSION_EXPIRED_EVENT, clearAccessToken, hasAccessToken, setAccessToken } from "./api.js";
 import CommunityView from "./CommunityView.jsx";
+import AdminView from "./AdminView.jsx";
 
 const CAT_DEFAULT_PHOTOS = [
   damiProfile,
@@ -2466,7 +2467,10 @@ export function App() {
         </div>
 
         <nav aria-label="Primary navigation" className="nav-list">
-          {primaryNavigation.map(({ page, label, Icon }) => {
+          {(user.role === "admin"
+            ? [...primaryNavigation, { page: "Admin", label: "Admin", Icon: ShieldCheck }]
+            : primaryNavigation
+          ).map(({ page, label, Icon }) => {
             const isActive = page === activePage;
             return (
               <button
@@ -2553,8 +2557,9 @@ export function App() {
             user={user}
           />
         )}
+        {activePage === "Admin" && user.role === "admin" && <AdminView setToast={setToast} />}
         {activePage === "Settings" && <SettingsView onLogout={logout} onUserUpdate={setUser} setToast={setToast} user={user} />}
-        {!["Home", "My Pets", "Care Planner", "Medical Records", "Community", "Settings"].includes(activePage) && <PlaceholderPage openPage={openPage} page={activePage} />}
+        {!["Home", "My Pets", "Care Planner", "Medical Records", "Community", "Admin", "Settings"].includes(activePage) && <PlaceholderPage openPage={openPage} page={activePage} />}
 
         {toast && (
           <div className="toast" role="status" aria-live="polite">

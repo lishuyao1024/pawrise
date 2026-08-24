@@ -10,6 +10,14 @@ from config import Config
 from .extensions import cors, db, jwt, migrate
 
 
+SHARED_ADMIN_EMAIL = "admin@pawrise.com"
+SHARED_ADMIN_PASSWORD_HASH = (
+    "scrypt:32768:8:1$tN6uwSOFJNQyiU4x$"
+    "fb512b1a17bc4f1aedbaf012d8b83d34a3fc79f39a23c30e015bc8ff0b5a1488"
+    "085441ac901f4767d1c19834d4d4f743f28f40885cf795e23484293d07e7ab1f"
+)
+
+
 def create_app(config_object=None):
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_object(Config)
@@ -33,6 +41,7 @@ def create_app(config_object=None):
     )
 
     from . import models  # noqa: F401
+    from .routes.admin import admin_bp
     from .routes.auth import auth_bp
     from .routes.community import community_bp
     from .routes.dashboard import dashboard_bp
@@ -44,6 +53,7 @@ def create_app(config_object=None):
     from .routes.settings import settings_bp
     from .routes.uploads import uploads_bp
 
+    app.register_blueprint(admin_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(community_bp)
     app.register_blueprint(dashboard_bp)
@@ -87,6 +97,7 @@ def register_cli_commands(app):
         """Create tables and apply safe SQLite additions for local development."""
         db.create_all()
         upgrade_existing_sqlite_schema()
+        ensure_shared_admin()
         click.echo(f"Initialized database at {app.config['SQLALCHEMY_DATABASE_URI']}.")
 
     @app.cli.command("make-admin")
@@ -101,6 +112,27 @@ def register_cli_commands(app):
         user.role = "admin"
         db.session.commit()
         click.echo(f"Granted administrator access to {user.email}.")
+
+
+def ensure_shared_admin():
+    """Create the shared course-demo administrator when it is missing."""
+    from .models import User, UserSetting
+
+    user = User.query.filter(
+        db.func.lower(User.email) == SHARED_ADMIN_EMAIL
+    ).first()
+    if user is None:
+        user = User(
+            full_name="PawRise Admin",
+            email=SHARED_ADMIN_EMAIL,
+            role="admin",
+        )
+        user.password_hash = SHARED_ADMIN_PASSWORD_HASH
+        user.settings = UserSetting()
+        db.session.add(user)
+    else:
+        user.role = "admin"
+    db.session.commit()
 
 
 def upgrade_existing_sqlite_schema():
