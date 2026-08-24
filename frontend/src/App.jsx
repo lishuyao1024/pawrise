@@ -1487,7 +1487,10 @@ function MedicalRecordsView({ pets, records, refreshData, setToast }) {
       setPendingRecord(record);
       setReviewData(record.extracted_data);
       await refreshData();
-      setToast("Extraction draft ready. Review every item before creating reminders.");
+      const usedVision = record.extracted_data?.extractor?.startsWith("openai-vision:");
+      setToast(usedVision
+        ? "Image read by AI. Review every extracted item before creating reminders."
+        : "Extraction draft ready. Review every item before creating reminders.");
     } catch (error) {
       const detail = error.details ? Object.values(error.details)[0] : null;
       setToast(detail || error.message);
@@ -1606,12 +1609,12 @@ function MedicalRecordsView({ pets, records, refreshData, setToast }) {
                 <span className="medical-file-button">Choose file</span>
                 <span className={documentFile ? "medical-file-name has-file" : "medical-file-name"}>{documentFile?.name || "No file selected"}</span>
               </span>
-              <small>PDF and TXT can be read locally. For a scanned image, paste its instructions below.</small>
+              <small>PDF and TXT are read from text. JPG, PNG, and WebP records are read with AI vision.</small>
             </label>
             <label className="medical-source-field">
               Veterinary instructions
               <textarea value={draft.sourceText} onChange={(event) => setDraft((current) => ({ ...current, sourceText: event.target.value }))} placeholder="Give Carprofen 25 mg once daily with food for 3 days. Follow-up appointment on August 19, 2026." />
-              <small>Optional for readable PDF/TXT files; useful for a reliable classroom demo.</small>
+              <small>Optional backup text for any document. Images can now be submitted without transcription.</small>
             </label>
             <button className="primary-button medical-extract-button" disabled={submitting || !pets.length} type="submit">
               <Sparkles aria-hidden="true" />{submitting ? "Extracting..." : "Extract for review"}

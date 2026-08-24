@@ -1218,7 +1218,7 @@ Form fields:
 | `document` | Conditional | PDF, TXT, JPG, PNG, or WebP, maximum request size 5 MB |
 | `source_text` | Conditional | Pasted veterinary instructions; required when the document has no readable text |
 
-The response contains a `draft` medical record and `extracted_data` with medication and follow-up information. PDF and TXT extraction works locally. Scanned images require pasted text in the MVP.
+The response contains a `draft` medical record and `extracted_data` with medication and follow-up information. PDF and TXT text is parsed before structured extraction. JPG, PNG, and WebP records can be submitted without pasted text and are transcribed and extracted with OpenAI vision. Every draft must be reviewed before reminders are created.
 
 ### 12.2 List and Get Medical Records
 

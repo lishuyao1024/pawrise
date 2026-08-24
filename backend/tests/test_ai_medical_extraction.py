@@ -3,9 +3,11 @@ from types import SimpleNamespace
 
 from app.services.ai_medical_extraction import (
     FollowUpResult,
+    MedicalImageRecordResult,
     MedicalRecordResult,
     MedicationResult,
     extract_medical_record,
+    extract_medical_record_from_image,
     extract_medical_record_with_ai,
 )
 
@@ -84,3 +86,46 @@ def test_ai_failure_uses_local_fallback():
     assert result["extractor"] == "local_rules_v2"
     assert result["fallback_used"] is True
     assert result["medications"][0]["name"] == "Carprofen"
+
+
+def test_ai_vision_reads_image_and_returns_transcription():
+    parsed = MedicalImageRecordResult(
+        transcription=(
+            "Carprofen 25 mg tablets. Give 1 tablet by mouth once daily with "
+            "food for 5 days. Next appointment: 10/01/2026."
+        ),
+        medications=[
+            MedicationResult(
+                name="Carprofen",
+                dose="25 mg",
+                frequency="once daily",
+                duration_days=5,
+                instructions="Give 1 tablet by mouth with food.",
+                source_text="Carprofen 25 mg tablets. Give 1 tablet once daily with food for 5 days.",
+            )
+        ],
+        follow_up=FollowUpResult(
+            date="2026-10-01",
+            clinic="",
+            source_text="Next appointment: 10/01/2026.",
+        ),
+    )
+    client = FakeClient(parsed=parsed)
+
+    result = extract_medical_record_from_image(
+        b"fake-image-bytes",
+        "image/png",
+        date(2026, 8, 17),
+        client=client,
+        model="test-vision-model",
+    )
+
+    assert result["extractor"] == "openai-vision:test-vision-model"
+    assert result["transcription"].startswith("Carprofen 25 mg")
+    assert result["medications"][0]["dose"] == "25 mg"
+    assert result["follow_up"]["date"] == "2026-10-01"
+    image_content = client.responses.kwargs["input"][1]["content"][1]
+    assert image_content["type"] == "input_image"
+    assert image_content["detail"] == "high"
+    assert image_content["image_url"].startswith("data:image/png;base64,")
+    assert client.responses.kwargs["text_format"] is MedicalImageRecordResult

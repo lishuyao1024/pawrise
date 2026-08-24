@@ -13,7 +13,7 @@ PawRise is a full-stack pet health, care, and memory-management web application.
 - Upcoming, due-soon, overdue, and completed care statuses
 - Repeating reminders with automatic next-occurrence creation
 - Completed care history
-- Veterinary Medical Records with local PDF/TXT extraction and review-before-confirmation
+- Veterinary Medical Records with PDF/TXT parsing, AI image recognition, and review-before-confirmation
 - Confirmed medication and follow-up details linked to standard care reminders
 - Memory timeline with image upload
 - Notification-settings management
@@ -98,8 +98,10 @@ Before deployment, replace the development value of `JWT_SECRET_KEY` in `backend
 
 Medical Record extraction uses OpenAI Structured Outputs when `OPENAI_API_KEY` is set.
 Copy `backend/.env.example` to `backend/.env`, add the key there, and optionally
-change `OPENAI_MEDICAL_MODEL`. If the API is unavailable, PawRise automatically
-falls back to its offline rules and still requires the user to review every field.
+change `OPENAI_MEDICAL_MODEL`. JPG, PNG, and WebP veterinary records are sent to
+OpenAI vision for transcription and structured extraction. Text-based extraction
+falls back to offline rules if the API is unavailable; image failures ask the user
+for a clearer image or pasted instructions. Every result still requires review.
 
 ### 3. Start the Frontend
 

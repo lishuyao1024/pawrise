@@ -10,7 +10,10 @@ from ..api import clean_string, error_response, parse_iso_date, success_response
 from ..extensions import db
 from ..models import CareReminder, MedicalRecord, Pet
 from ..models.base import utc_now
-from ..services.ai_medical_extraction import extract_medical_record
+from ..services.ai_medical_extraction import (
+    extract_medical_record,
+    extract_medical_record_from_image,
+)
 
 
 medical_records_bp = Blueprint(
@@ -18,6 +21,7 @@ medical_records_bp = Blueprint(
 )
 
 ALLOWED_EXTENSIONS = {".pdf", ".txt", ".jpg", ".jpeg", ".png", ".webp"}
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 ALLOWED_MIME_TYPES = {
     "application/pdf",
     "text/plain",
@@ -161,12 +165,55 @@ def create_medical_record():
         except (RuntimeError, ValueError) as exc:
             return error_response("DOCUMENT_EXTRACTION_FAILED", str(exc), 400)
 
+    reference_date = visit_date or date.today()
+    extracted_data = None
     source_text = supplied_text or clean_string(extracted_file_text)
+
+    if document and original_name and extension in IMAGE_EXTENSIONS and supplied_text is None:
+        api_key = current_app.config.get("OPENAI_API_KEY")
+        if not api_key:
+            return error_response(
+                "IMAGE_AI_NOT_CONFIGURED",
+                "Image recognition is unavailable. Paste the veterinary instructions or configure OpenAI.",
+                503,
+            )
+
+        document.stream.seek(0)
+        image_bytes = document.stream.read()
+        document.stream.seek(0)
+        try:
+            extracted_data = extract_medical_record_from_image(
+                image_bytes,
+                document.mimetype,
+                reference_date,
+                api_key=api_key,
+                model=current_app.config.get("OPENAI_MEDICAL_MODEL", "gpt-5-nano"),
+            )
+        except Exception as exc:
+            current_app.logger.warning(
+                "OpenAI veterinary image extraction failed: %s", exc
+            )
+            return error_response(
+                "IMAGE_EXTRACTION_FAILED",
+                "The image could not be read by AI. Try a clearer image or paste the instructions.",
+                502,
+            )
+        source_text = clean_string(extracted_data.pop("transcription", None))
+
     if source_text is None:
         return error_response(
             "DOCUMENT_TEXT_REQUIRED",
-            "No readable text was found. Paste the veterinary instructions to continue.",
+            "No readable medical text was found. Try a clearer image or paste the veterinary instructions.",
             400,
+        )
+
+    if extracted_data is None:
+        extracted_data = extract_medical_record(
+            source_text,
+            reference_date,
+            api_key=current_app.config.get("OPENAI_API_KEY"),
+            model=current_app.config.get("OPENAI_MEDICAL_MODEL", "gpt-5-nano"),
+            logger=current_app.logger,
         )
 
     stored_filename = None
@@ -174,7 +221,6 @@ def create_medical_record():
         stored_filename = f"{uuid4().hex}{extension}"
         document.save(medical_record_directory() / stored_filename)
 
-    reference_date = visit_date or date.today()
     record = MedicalRecord(
         pet_id=pet.id,
         title=title,
@@ -183,13 +229,7 @@ def create_medical_record():
         stored_filename=stored_filename,
         mime_type=document.mimetype if document and original_name else None,
         source_text=source_text,
-        extracted_data=extract_medical_record(
-            source_text,
-            reference_date,
-            api_key=current_app.config.get("OPENAI_API_KEY"),
-            model=current_app.config.get("OPENAI_MEDICAL_MODEL", "gpt-5-nano"),
-            logger=current_app.logger,
-        ),
+        extracted_data=extracted_data,
         status="draft",
     )
     db.session.add(record)

@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+from io import BytesIO
 
 from app.extensions import db
 from app.models import CareReminder, MedicalRecord, Pet
@@ -105,6 +106,69 @@ def test_record_requires_document_or_pasted_text(client, auth_headers):
 
     assert response.status_code == 400
     assert "document" in response.get_json()["error"]["details"]
+
+
+def test_image_record_uses_ai_vision_without_pasted_text(
+    app, client, auth_headers, monkeypatch
+):
+    pet_id = create_pet(client, auth_headers)
+    app.config["OPENAI_API_KEY"] = "test-key"
+
+    def fake_image_extraction(image_bytes, mime_type, reference_date, **kwargs):
+        assert image_bytes == b"fake-veterinary-image"
+        assert mime_type == "image/png"
+        return {
+            "transcription": (
+                "Carprofen 25 mg tablets. Give 1 tablet once daily with food "
+                "for 5 days. Next appointment: 10/01/2026."
+            ),
+            "medications": [
+                {
+                    "include": True,
+                    "name": "Carprofen",
+                    "dose": "25 mg",
+                    "frequency": "once daily",
+                    "duration_days": 5,
+                    "start_date": reference_date.isoformat(),
+                    "instructions": "Give 1 tablet with food.",
+                    "source_text": "Carprofen 25 mg tablets.",
+                }
+            ],
+            "follow_up": {
+                "include": True,
+                "date": "2026-10-01",
+                "clinic": "",
+                "source_text": "Next appointment: 10/01/2026.",
+            },
+            "extractor": "openai-vision:test-model",
+        }
+
+    monkeypatch.setattr(
+        "app.routes.medical_records.extract_medical_record_from_image",
+        fake_image_extraction,
+    )
+    response = client.post(
+        "/api/medical-records",
+        headers=auth_headers,
+        data={
+            "pet_id": str(pet_id),
+            "title": "Photographed veterinary record",
+            "visit_date": date.today().isoformat(),
+            "document": (
+                BytesIO(b"fake-veterinary-image"),
+                "record.png",
+                "image/png",
+            ),
+        },
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 201
+    record = response.get_json()["data"]
+    assert record["source_text"].startswith("Carprofen 25 mg")
+    assert record["extracted_data"]["extractor"] == "openai-vision:test-model"
+    assert record["extracted_data"]["medications"][0]["dose"] == "25 mg"
+    assert record["extracted_data"]["follow_up"]["date"] == "2026-10-01"
 
 
 def test_confirm_record_creates_standard_linked_reminders(
