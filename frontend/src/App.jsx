@@ -86,6 +86,7 @@ function parseEnglishDateInput(value) {
 
 function EnglishDateInput({ value, onChange, min, max, ariaLabel, className }) {
   const [displayValue, setDisplayValue] = useState(() => formatEnglishDateInput(value));
+  const calendarInputRef = useRef(null);
 
   useEffect(() => {
     setDisplayValue(formatEnglishDateInput(value));
@@ -98,18 +99,40 @@ function EnglishDateInput({ value, onChange, min, max, ariaLabel, className }) {
     else setDisplayValue(formatEnglishDateInput(value));
   }
 
+  function openCalendar() {
+    const calendarInput = calendarInputRef.current;
+    if (!calendarInput) return;
+    if (typeof calendarInput.showPicker === "function") calendarInput.showPicker();
+    else calendarInput.click();
+  }
+
   return (
-    <input
-      aria-label={ariaLabel}
-      className={className}
-      inputMode="numeric"
-      placeholder="MM/DD/YYYY"
-      type="text"
-      value={displayValue}
-      onBlur={commitValue}
-      onChange={(event) => setDisplayValue(event.target.value)}
-      onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
-    />
+    <span className={className ? `english-date-input ${className}` : "english-date-input"}>
+      <input
+        aria-label={ariaLabel}
+        inputMode="numeric"
+        placeholder="MM/DD/YYYY"
+        type="text"
+        value={displayValue}
+        onBlur={commitValue}
+        onChange={(event) => setDisplayValue(event.target.value)}
+        onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
+      />
+      <button aria-label={`Choose ${ariaLabel?.replace(", MM/DD/YYYY", "") || "date"} from calendar`} className="english-date-picker-button" type="button" onClick={openCalendar}>
+        <CalendarDays aria-hidden="true" />
+      </button>
+      <input
+        ref={calendarInputRef}
+        aria-hidden="true"
+        className="english-date-native-picker"
+        max={max}
+        min={min}
+        tabIndex={-1}
+        type="date"
+        value={value || ""}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </span>
   );
 }
 

@@ -320,6 +320,52 @@ button:disabled {
   justify-self: start;
 }
 
+.english-date-input {
+  position: relative;
+  display: block;
+}
+
+.english-date-input > input[type="text"] {
+  width: 100%;
+  padding-right: 48px;
+}
+
+.english-date-picker-button {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  z-index: 1;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 9px;
+  color: var(--coral-dark);
+  background: transparent;
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+.english-date-picker-button:hover,
+.english-date-picker-button:focus-visible {
+  background: #f7e4dd;
+}
+
+.english-date-picker-button svg {
+  width: 19px;
+  height: 19px;
+}
+
+.english-date-native-picker {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .onboarding-weight-field {
   grid-column: 1;
 }
