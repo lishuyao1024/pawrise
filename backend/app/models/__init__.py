@@ -1,3 +1,4 @@
+from .admin_audit_log import AdminAuditLog
 from .care_reminder import CareReminder
 from .community import CommunityBlock, CommunityLike, CommunityPost, CommunityReport
 from .memory import Memory
@@ -8,6 +9,7 @@ from .user_setting import UserSetting
 
 __all__ = [
     "CareReminder",
+    "AdminAuditLog",
     "CommunityBlock",
     "CommunityLike",
     "CommunityPost",

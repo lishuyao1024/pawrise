@@ -3,7 +3,7 @@ from flask_jwt_extended import get_jwt_identity, jwt_required
 
 from ..api import error_response, success_response
 from ..extensions import db
-from ..models import CommunityPost, CommunityReport, User
+from ..models import AdminAuditLog, CommunityPost, CommunityReport, User
 
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/api/admin")
@@ -100,7 +100,8 @@ def list_admin_posts():
 @admin_bp.patch("/reports/<int:report_id>")
 @jwt_required()
 def update_admin_report(report_id):
-    if current_admin() is None:
+    admin = current_admin()
+    if admin is None:
         return error_response("FORBIDDEN", "Administrator access is required.", 403)
 
     report = db.session.get(CommunityReport, report_id)
@@ -112,8 +113,47 @@ def update_admin_report(report_id):
         return error_response("VALIDATION_ERROR", "Status must be pending or resolved.", 422)
 
     report.status = status
+    db.session.add(AdminAuditLog(
+        admin_user_id=admin.id,
+        action="resolve_report" if status == "resolved" else "reopen_report",
+        target_type="community_report",
+        target_id=report.id,
+        target_label=report.post.title,
+        details={"status": status, "post_id": report.post_id},
+    ))
     db.session.commit()
     return success_response({"id": report.id, "status": report.status})
+
+
+@admin_bp.get("/logs")
+@jwt_required()
+def list_admin_logs():
+    if current_admin() is None:
+        return error_response("FORBIDDEN", "Administrator access is required.", 403)
+
+    logs = AdminAuditLog.query.order_by(
+        AdminAuditLog.created_at.desc(),
+        AdminAuditLog.id.desc(),
+    ).limit(200).all()
+    results = []
+    for log in logs:
+        payload = log.to_dict()
+        owner_id = payload["details"].get("author_id")
+        if not owner_id and payload["details"].get("post_id"):
+            post = db.session.get(CommunityPost, payload["details"]["post_id"])
+            owner_id = post.user_id if post else None
+        owner = db.session.get(User, owner_id) if owner_id else None
+        payload["target_owner"] = (
+            {
+                "id": owner.id,
+                "full_name": owner.full_name,
+                "email": owner.email,
+            }
+            if owner
+            else None
+        )
+        results.append(payload)
+    return success_response(results)
 
 
 @admin_bp.get("/users")

@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from ..api import clean_string, error_response, success_response
 from ..extensions import db
 from ..models import (
+    AdminAuditLog,
     CommunityBlock,
     CommunityLike,
     CommunityPost,
@@ -168,6 +169,15 @@ def delete_post(post_id):
         return error_response("POST_NOT_FOUND", "Community post not found.", 404)
     if post.user_id != viewer.id and viewer.role != "admin":
         return error_response("FORBIDDEN", "You cannot delete this post.", 403)
+    if viewer.role == "admin":
+        db.session.add(AdminAuditLog(
+            admin_user_id=viewer.id,
+            action="delete_post",
+            target_type="community_post",
+            target_id=post.id,
+            target_label=post.title,
+            details={"author_id": post.user_id},
+        ))
     db.session.delete(post)
     db.session.commit()
     return success_response({"deleted_post_id": post_id}, "Community post deleted.")
@@ -187,6 +197,14 @@ def moderate_post(post_id):
     if status not in {"published", "hidden"}:
         return error_response("VALIDATION_ERROR", "status must be published or hidden.", 400)
     post.status = status
+    db.session.add(AdminAuditLog(
+        admin_user_id=viewer.id,
+        action="hide_post" if status == "hidden" else "restore_post",
+        target_type="community_post",
+        target_id=post.id,
+        target_label=post.title,
+        details={"status": status, "author_id": post.user_id},
+    ))
     db.session.commit()
     return success_response(serialize_post(post, viewer.id), "Moderation status updated.")
 

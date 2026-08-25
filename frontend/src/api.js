@@ -185,6 +185,7 @@ export const api = {
     users: () => apiRequest("/admin/users"),
     user: (id) => apiRequest(`/admin/users/${id}`),
     updateReport: (id, status) => apiRequest(`/admin/reports/${id}`, { method: "PATCH", body: { status } }),
+    logs: () => apiRequest("/admin/logs"),
   },
   medicalRecords: {
     list: () => apiRequest("/medical-records"),
