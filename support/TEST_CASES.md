@@ -189,24 +189,29 @@ The automated test calculates a future date at runtime so the test remains valid
 
 ## 12. Coverage Summary
 
-| Test area | Test count |
+| Test module | Test count |
 |---|---:|
-| System health | 1 |
-| Database schema and models | 4 |
-| Authentication | 7 |
-| Pets | 9 |
-| Care reminders | 13 |
-| Memories | 8 |
-| Settings | 4 |
+| AI medical extraction | 3 |
+| Authentication and profile | 12 |
+| Community | 8 |
 | Dashboard | 4 |
+| System health | 1 |
+| Medical Records | 11 |
+| Memories | 8 |
+| Database models | 1 |
+| Pets | 11 |
+| Care reminders | 40 |
+| Database schema | 6 |
+| Settings | 4 |
 | Authenticated image uploads | 3 |
-| Medical Records | 9 |
-| **Total** | **62** |
+| **Total** | **112** |
 
 ## 13. Automated Test Source Files
 
 ```text
 backend/tests/test_health.py
+backend/tests/test_ai_medical_extraction.py
+backend/tests/test_community.py
 backend/tests/test_schema.py
 backend/tests/test_models.py
 backend/tests/test_auth.py

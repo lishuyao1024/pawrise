@@ -2,7 +2,9 @@
 
 PawRise is a full-stack pet health, care, and memory-management web application. It gives pet owners one organized place to manage pet profiles, care reminders, completed care history, memories, photos, and notification settings.
 
-> **Current status:** The React frontend is connected to the Flask REST API. Authentication, database-backed pet care features, Medical Records extraction and confirmation, linked reminders, settings, and authenticated uploads are implemented. The project is verified by 101 backend tests and a successful frontend production build.
+> **Current status:** The React frontend is connected to the Flask REST API. Authentication, database-backed pet care features, Medical Records extraction and confirmation, linked reminders, settings, and authenticated uploads are implemented. The project is verified by 112 backend tests and a successful frontend production build.
+
+**Production application:** [Open PawRise](https://pawrise-sylvia-20260810-htdvc8eng5bbdscc.canadacentral-01.azurewebsites.net/)
 
 ## Features
   
@@ -52,12 +54,13 @@ pawrise/
 |   |-- app/
 |   |   |-- models/       # SQLAlchemy database models
 |   |   `-- routes/       # Flask API blueprints
-|   |-- tests/            # 101 automated tests
+|   |-- tests/            # 112 automated tests
 |   |-- config.py
 |   |-- requirements.txt
 |   `-- run.py
 |-- frontend/             #  React application connected to the API
-|-- docs/                 #  API, database, test, and Postman documentation
+|-- docs/                 #  Capstone assignment documentation
+|-- support/              #  API, database, test, and Postman evidence
 |-- postman/              #  Postman local collection files
 |-- .gitignore
 `-- README.md
@@ -133,7 +136,7 @@ pytest
 Verified result:
 
 ```text
-101 passed
+112 passed
 ```
 
 Build the frontend from `pawrise/frontend`:
@@ -149,20 +152,22 @@ Verified result: the Vite production build completes successfully.
 Import this collection into Postman:
 
 ```text
-docs/PawRise_Milestone2.postman_collection.json
+support/PawRise_Milestone2.postman_collection.json
 ```
 
 The collection automatically manages the demonstration email, JWT access token, pet ID, reminder IDs, memory ID, and runtime dates. Run the numbered requests in order.
 
 ## Documentation
 
-- [API Documentation](docs/API_DOCUMENTATION.md)
-- [Database Design](docs/DATABASE_DESIGN.md)
-- [Entity-Relationship Diagram](docs/er_diagram.png)
-- [Test Cases](docs/TEST_CASES.md)
-- [Test Results](docs/TEST_RESULTS.md)
-- [Postman Collection](docs/PawRise_Milestone2.postman_collection.json)
-- [Medical Records and Care Reminders Integration](docs/MEDICAL_RECORDS_AND_REMINDERS.md)
+- [Capstone Assignment Documentation](docs/README.md)
+- [Supporting Technical Documentation](support/README.md)
+- [API Documentation](support/API_DOCUMENTATION.md)
+- [Database Design](support/DATABASE_DESIGN.md)
+- [Entity-Relationship Diagram](support/er_diagram.png)
+- [Test Cases](support/TEST_CASES.md)
+- [Test Results](support/TEST_RESULTS.md)
+- [Postman Collection](support/PawRise_Milestone2.postman_collection.json)
+- [Medical Records and Care Reminders Integration](support/MEDICAL_RECORDS_AND_REMINDERS.md)
 
 ## Core API Areas
 
