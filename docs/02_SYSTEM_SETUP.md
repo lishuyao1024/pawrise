@@ -52,7 +52,9 @@ The main project structure is:
 pawrise/
 ├── backend/
 ├── frontend/
-├── docs/
+├── docs/          # Setup, operations, troubleshooting, usage, architecture
+├── support/       # API, database, testing, ERD, and Postman evidence
+├── deliverables/  # Capstone presentation materials
 ├── requirements.txt
 ├── startup.sh
 └── README.md

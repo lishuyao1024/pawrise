@@ -92,6 +92,7 @@ YYYY-MM-DDTHH:MM:SSZ
 | Authentication | POST | `/auth/register` | No | Register a user |
 | Authentication | POST | `/auth/login` | No | Log in and receive an access token |
 | Authentication | GET | `/auth/me` | Yes | Get the current user |
+| Authentication | PATCH | `/auth/me` | Yes | Update the current user's name or uploaded avatar |
 | Pets | POST | `/pets` | Yes | Create a pet |
 | Pets | GET | `/pets` | Yes | List the user's pets |
 | Pets | GET | `/pets/{pet_id}` | Yes | Get one pet |
@@ -113,6 +114,15 @@ YYYY-MM-DDTHH:MM:SSZ
 | Memories | GET | `/memories` | Yes | List memories |
 | Memories | PUT | `/memories/{memory_id}` | Yes | Update one memory |
 | Memories | DELETE | `/memories/{memory_id}` | Yes | Delete one memory |
+| Community | GET | `/community/posts` | Yes | List visible posts with search and filters |
+| Community | POST | `/community/posts` | Yes | Share one owned photo memory |
+| Community | DELETE | `/community/posts/{post_id}` | Yes | Delete an owned post or moderate as an administrator |
+| Community | PATCH | `/community/posts/{post_id}/moderation` | Admin | Publish or hide a post |
+| Community | POST/DELETE | `/community/posts/{post_id}/likes` | Yes | Like or unlike a visible post |
+| Community | POST | `/community/posts/{post_id}/reports` | Yes | Report another user's post |
+| Community | POST/DELETE | `/community/blocks/{user_id}` | Yes | Block or unblock another user |
+| Uploads | POST | `/uploads` | Yes | Validate and store a JPG, PNG, GIF, or WebP image |
+| Uploads | GET | `/uploads/{filename}` | No | Return a stored image by generated filename |
 | Settings | GET | `/settings` | Yes | Get notification settings |
 | Settings | PUT | `/settings` | Yes | Update notification settings |
 | Dashboard | GET | `/dashboard` | Yes | Get dashboard summary data |
@@ -285,6 +295,25 @@ No request body is required.
   }
 }
 ```
+
+### 6.4 Update Current User
+
+Updates the authenticated user's display name, uploaded avatar, or both.
+
+```http
+PATCH /api/auth/me
+Authorization: Bearer <access-token>
+Content-Type: application/json
+```
+
+```json
+{
+  "full_name": "Updated Name",
+  "avatar_url": "/api/uploads/profile-avatar.png"
+}
+```
+
+`avatar_url` must be empty or point to an image produced by the PawRise upload endpoint. Email and role cannot be changed through this route.
 
 ---
 
@@ -1277,7 +1306,49 @@ When `delete_incomplete_reminders=true`, linked incomplete reminders are removed
 
 ---
 
-## 13. Authorization and Data Protection Requirements
+## 13. Upload APIs
+
+### 13.1 Upload Image
+
+```http
+POST /api/uploads
+Authorization: Bearer <access-token>
+Content-Type: multipart/form-data
+```
+
+Send the file in the `image` form field. PawRise accepts JPG, JPEG, PNG, GIF, and WebP images after validating both the extension and MIME type. A successful request returns `201 Created` with a generated filename and URL.
+
+### 13.2 Get Uploaded Image
+
+```http
+GET /api/uploads/{filename}
+```
+
+Returns a previously stored image. Generated filenames prevent user-supplied paths from controlling the storage location.
+
+---
+
+## 14. Community APIs
+
+Community endpoints require JWT authentication and never expose private memories directly. A post can only be created from one of the current user's memories that contains an image.
+
+| Method | Endpoint | Behavior |
+|---|---|---|
+| GET | `/api/community/posts` | Lists up to 50 newest visible posts. Supports `mine=true`, `species=cat|dog`, and `search` filters. Posts from blocked relationships are excluded. |
+| POST | `/api/community/posts` | Shares an owned photo memory. A memory cannot have two published posts from the same owner. |
+| DELETE | `/api/community/posts/{post_id}` | Deletes an owned post; administrators may also delete posts. The original private memory remains. |
+| PATCH | `/api/community/posts/{post_id}/moderation` | Allows an administrator to set `status` to `published` or `hidden`. |
+| POST | `/api/community/posts/{post_id}/likes` | Likes a visible post. Repeated requests are idempotent. |
+| DELETE | `/api/community/posts/{post_id}/likes` | Removes the current user's like. |
+| POST | `/api/community/posts/{post_id}/reports` | Creates or refreshes a report with a required reason of up to 250 characters. Users cannot report their own posts. |
+| POST | `/api/community/blocks/{user_id}` | Blocks another account and removes both users' posts from one another's feeds. |
+| DELETE | `/api/community/blocks/{user_id}` | Removes an existing block relationship. |
+
+Community safeguards include ownership checks, unique likes and reports, self-block prevention, hidden-post visibility rules, and administrator-only moderation.
+
+---
+
+## 15. Authorization and Data Protection Requirements
 
 1. Passwords must be hashed using a secure password-hashing function.
 2. API responses must never return password hashes.
@@ -1288,7 +1359,7 @@ When `delete_incomplete_reminders=true`, linked incomplete reminders are removed
 7. API errors must not expose stack traces, database credentials, or internal file paths.
 8. Secrets such as JWT signing keys must be stored in environment variables.
 
-## 14. Database Update Expectations for the Demonstration
+## 16. Database Update Expectations for the Demonstration
 
 The Milestone 2 video must show database evidence after each modifying API operation:
 
@@ -1309,18 +1380,22 @@ The Milestone 2 video must show database evidence after each modifying API opera
 | Upload medical record | New `medical_records` row with status `draft`; no reminders yet |
 | Confirm medical record | Record status becomes `confirmed`; linked rows appear in `care_reminders` |
 | Delete medical record | Source row is removed; completed Care History remains |
+| Upload image | A validated file is stored with a generated filename; no database row is required |
+| Share memory with Community | New `community_posts` row references the owned memory and pet |
+| Like or report a post | A unique `community_likes` or `community_reports` row is created |
+| Block a user | A unique `community_blocks` row is created and the feed is filtered |
 
-## 15. Current Scope Decisions
+## 17. Current Scope Decisions
 
 - The Dashboard uses existing pet, reminder, and memory data; it does not have its own database table.
 - Reminder status is calculated by the backend and is not directly edited by users.
 - Completed reminders remain available as Care History.
 - Completing a repeating reminder automatically creates its next occurrence.
 - Pet age is calculated from the birthday.
-- Medical Record extraction is local and deterministic in the MVP; a hosted model can replace the extractor later without bypassing user confirmation.
+- Medical Record extraction uses local PDF/TXT parsing and can use OpenAI structured vision for images; user confirmation remains mandatory.
 - Email delivery, password-reset email delivery, payment processing, veterinary diagnosis, prescriptions, emergency services, and veterinary-clinic integration are outside the Milestone 2 core backend scope.
 
-## 16. Future Enhancements
+## 18. Future Enhancements
 
 The following endpoints are intentionally excluded from the Milestone 2 core backend. They may be designed and implemented after all required database-backed APIs are complete and tested:
 

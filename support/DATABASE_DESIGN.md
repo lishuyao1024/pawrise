@@ -2,7 +2,7 @@
 
 ## 1. Document Purpose
 
-This document defines the relational database design for the PawRise backend. The database supports authenticated user accounts, pet profiles, medical records, linked care reminders and history, pet memories, notification settings, and dashboard summaries.
+This document defines the relational database design for the PawRise backend. The database supports authenticated user accounts, pet profiles, medical records, linked care reminders and history, pet memories, notification settings, Community interactions, and dashboard summaries.
 
 The design corresponds to the core APIs defined in [API_DOCUMENTATION.md](API_DOCUMENTATION.md).
 
@@ -25,7 +25,7 @@ The local `.db` file is excluded from Git because it contains runtime data. SQLA
 
 ![PawRise database entity-relationship diagram](er_diagram.png)
 
-The standalone PNG shows the original Milestone 2 core. The implemented Medical Records extension and its reminder link are defined in the tables below and should be included in the next diagram revision.
+The standalone PNG documents the original Milestone 2 core. The implemented Medical Records and Community extensions are defined in the tables below; the SQLAlchemy models remain the implementation source of truth.
 
 ## 4. Relationship Summary
 
@@ -38,6 +38,12 @@ The standalone PNG shows the original Milestone 2 core. The implemented Medical 
 | `pets` | `memories` | One pet can have many memories | Delete memories when the pet is deleted |
 | `care_reminders` | `care_reminders` | A completed repeating reminder may generate the next reminder | Keep the generated reminder if its source link is cleared |
 | `medical_records` | `care_reminders` | One confirmed record can generate many standard reminders | Set the source link to null when history is preserved |
+| `users` | `community_posts` | One user can publish many Community posts | Delete posts when the author is deleted |
+| `pets` | `community_posts` | One pet can appear in many Community posts | Delete posts when the pet is deleted |
+| `memories` | `community_posts` | A private memory can be shared as one Community post | Keep the post and clear the source link if the memory is deleted |
+| `community_posts` | `community_likes` | One post can receive likes from many users | Delete likes when the post is deleted |
+| `community_posts` | `community_reports` | One post can receive reports from many users | Delete reports when the post is deleted |
+| `users` | `community_blocks` | A user can block multiple other users | Delete block relationships with either user |
 
 All protected database queries must be scoped to the authenticated user. A user must never be able to read or modify another user's records.
 
@@ -53,6 +59,8 @@ Stores login and account identity information.
 | `full_name` | VARCHAR(100) | Yes | — | User's display name |
 | `email` | VARCHAR(255) | Yes | Unique, indexed | Normalized login email |
 | `password_hash` | VARCHAR(255) | Yes | — | Secure password hash |
+| `avatar_url` | VARCHAR(500) | No | Null | Validated profile-image URL |
+| `role` | VARCHAR(20) | Yes | Default `user` | `user` or `admin` authorization role |
 | `created_at` | DATETIME | Yes | Current UTC time | Record creation time |
 | `updated_at` | DATETIME | Yes | Current UTC time | Last account update time |
 
@@ -61,6 +69,7 @@ Stores login and account identity information.
 - `full_name` must not be blank.
 - `email` must be normalized to lowercase before storage.
 - `email` must be unique.
+- `role` is assigned by the backend; administrator access is never self-selected during registration.
 - Plain-text passwords must never be stored.
 - Passwords must contain at least eight characters before hashing.
 
@@ -72,6 +81,8 @@ Stores login and account identity information.
   "full_name": "Shuyao Li",
   "email": "shuyao@example.com",
   "password_hash": "<secure-hash>",
+  "avatar_url": "/api/uploads/profile-avatar.png",
+  "role": "user",
   "created_at": "2026-07-24T20:00:00Z",
   "updated_at": "2026-07-24T20:00:00Z"
 }
@@ -348,6 +359,63 @@ Stores one notification-settings row for each user.
 }
 ```
 
+### 5.7 `community_posts`
+
+Stores a public Community representation of an owned photo memory.
+
+| Column | SQLite type | Required | Key/default | Description |
+|---|---|---:|---|---|
+| `id` | INTEGER | Yes | Primary key | Community post identifier |
+| `user_id` | INTEGER | Yes | Foreign key → `users.id`, indexed | Post author |
+| `pet_id` | INTEGER | Yes | Foreign key → `pets.id`, indexed | Pet shown in the post |
+| `source_memory_id` | INTEGER | No | Foreign key → `memories.id` | Private memory used to create the post |
+| `title` | VARCHAR(150) | Yes | — | Copied memory title |
+| `body` | TEXT | No | Null | Copied memory description |
+| `image_url` | VARCHAR(500) | Yes | — | Required pet photo |
+| `status` | VARCHAR(20) | Yes | Default `published` | `published` or `hidden` moderation state |
+| `created_at` | DATETIME | Yes | Current UTC time | Post creation time |
+| `updated_at` | DATETIME | Yes | Current UTC time | Last moderation update |
+
+### 5.8 `community_likes`
+
+Stores one like per user and post. The composite uniqueness rule on (`post_id`, `user_id`) makes repeated like requests idempotent.
+
+| Column | SQLite type | Required | Key/default | Description |
+|---|---|---:|---|---|
+| `id` | INTEGER | Yes | Primary key | Like identifier |
+| `post_id` | INTEGER | Yes | Foreign key → `community_posts.id`, indexed | Liked post |
+| `user_id` | INTEGER | Yes | Foreign key → `users.id` | User who liked the post |
+| `created_at` | DATETIME | Yes | Current UTC time | Like creation time |
+| `updated_at` | DATETIME | Yes | Current UTC time | Last like update time |
+
+### 5.9 `community_reports`
+
+Stores one report per viewer and post. Resubmitting a report refreshes its reason and returns its status to `pending`.
+
+| Column | SQLite type | Required | Key/default | Description |
+|---|---|---:|---|---|
+| `id` | INTEGER | Yes | Primary key | Report identifier |
+| `post_id` | INTEGER | Yes | Foreign key → `community_posts.id` | Reported post |
+| `reporter_id` | INTEGER | Yes | Foreign key → `users.id` | Reporting user |
+| `reason` | VARCHAR(250) | Yes | — | User-supplied report reason |
+| `status` | VARCHAR(20) | Yes | Default `pending` | `pending` or `resolved` |
+| `created_at` | DATETIME | Yes | Current UTC time | Report creation time |
+| `updated_at` | DATETIME | Yes | Current UTC time | Last report update time |
+
+### 5.10 `community_blocks`
+
+Stores directional user blocks. The backend filters Community feeds in both directions when either user has blocked the other.
+
+| Column | SQLite type | Required | Key/default | Description |
+|---|---|---:|---|---|
+| `id` | INTEGER | Yes | Primary key | Block identifier |
+| `blocker_id` | INTEGER | Yes | Foreign key → `users.id` | User who created the block |
+| `blocked_user_id` | INTEGER | Yes | Foreign key → `users.id` | Hidden account |
+| `created_at` | DATETIME | Yes | Current UTC time | Block creation time |
+| `updated_at` | DATETIME | Yes | Current UTC time | Last block update time |
+
+The pair (`blocker_id`, `blocked_user_id`) is unique, and a user cannot block their own account.
+
 ## 6. Index Design
 
 Indexes improve the queries used most frequently by the API.
@@ -365,6 +433,12 @@ Indexes improve the queries used most frequently by the API.
 | `medical_records` | Index on `visit_date` | Order veterinary records by visit date |
 | `memories` | Index on `pet_id` | Filter memories by pet |
 | `memories` | Index on `memory_date` | Display the timeline in date order |
+| `community_posts` | Index on `created_at` | Display the newest Community posts first |
+| `community_posts` | Index on `user_id` | Filter posts by author |
+| `community_posts` | Index on `pet_id` | Filter and join posts by pet |
+| `community_likes` | Unique index on (`post_id`, `user_id`) | Prevent duplicate likes |
+| `community_reports` | Unique index on (`post_id`, `reporter_id`) | Keep one active report per viewer and post |
+| `community_blocks` | Unique index on (`blocker_id`, `blocked_user_id`) | Prevent duplicate block relationships |
 
 ## 7. SQLite Reference Schema
 
@@ -378,6 +452,8 @@ CREATE TABLE users (
     full_name VARCHAR(100) NOT NULL,
     email VARCHAR(255) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
+    avatar_url VARCHAR(500),
+    role VARCHAR(20) NOT NULL DEFAULT 'user',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -509,6 +585,60 @@ CREATE TABLE user_settings (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE community_posts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    pet_id INTEGER NOT NULL,
+    source_memory_id INTEGER,
+    title VARCHAR(150) NOT NULL,
+    body TEXT,
+    image_url VARCHAR(500) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'published',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK (status IN ('published', 'hidden')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (pet_id) REFERENCES pets(id) ON DELETE CASCADE,
+    FOREIGN KEY (source_memory_id) REFERENCES memories(id) ON DELETE SET NULL
+);
+
+CREATE TABLE community_likes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    post_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (post_id, user_id),
+    FOREIGN KEY (post_id) REFERENCES community_posts(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE community_reports (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    post_id INTEGER NOT NULL,
+    reporter_id INTEGER NOT NULL,
+    reason VARCHAR(250) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (post_id, reporter_id),
+    CHECK (status IN ('pending', 'resolved')),
+    FOREIGN KEY (post_id) REFERENCES community_posts(id) ON DELETE CASCADE,
+    FOREIGN KEY (reporter_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE community_blocks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    blocker_id INTEGER NOT NULL,
+    blocked_user_id INTEGER NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (blocker_id, blocked_user_id),
+    CHECK (blocker_id <> blocked_user_id),
+    FOREIGN KEY (blocker_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (blocked_user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 CREATE INDEX ix_pets_user_id
     ON pets(user_id);
 
@@ -538,6 +668,15 @@ CREATE INDEX ix_memories_pet_id
 
 CREATE INDEX ix_memories_memory_date
     ON memories(memory_date);
+
+CREATE INDEX ix_community_posts_created_at
+    ON community_posts(created_at);
+
+CREATE INDEX ix_community_posts_user_id
+    ON community_posts(user_id);
+
+CREATE INDEX ix_community_posts_pet_id
+    ON community_posts(pet_id);
 ```
 
 ## 8. API-to-Table Mapping
@@ -550,6 +689,7 @@ CREATE INDEX ix_memories_memory_date
 | Reminder APIs | `pets`, `care_reminders`, `user_settings` | `care_reminders` |
 | Medical Record APIs | `pets`, `medical_records`, `care_reminders` | `medical_records`, `care_reminders` |
 | Memory APIs | `pets`, `memories` | `memories` |
+| Community APIs | `users`, `pets`, `memories`, `community_posts`, `community_likes`, `community_reports`, `community_blocks` | `community_posts`, `community_likes`, `community_reports`, `community_blocks` |
 | Settings APIs | `user_settings` | `user_settings` |
 | Dashboard | `users`, `pets`, `care_reminders`, `memories`, `user_settings` | None |
 | Health check | Database connection metadata | None |
@@ -569,13 +709,14 @@ This prevents duplicate dashboard data from becoming inconsistent with the sourc
 ## 10. Data Integrity and Transaction Rules
 
 1. Registration creates both `users` and `user_settings` rows in one transaction.
-2. Deleting a user cascades to settings, pets, reminders, and memories.
-3. Deleting a pet cascades to its reminders and memories.
+2. Deleting a user cascades to settings, pets, reminders, memories, posts, likes, reports, and block relationships.
+3. Deleting a pet cascades to its reminders, memories, and Community posts.
 4. Completing a repeating reminder updates the current row and inserts the next row in one transaction.
 5. Failed validation must not write partial data.
 6. All timestamps are generated by the backend in UTC.
 7. SQLite foreign-key enforcement must be enabled for every database connection.
 8. API serialization must never include `password_hash`.
+9. Community likes, reports, and blocks use uniqueness constraints so repeated requests cannot create duplicate relationships.
 
 ## 11. Database Evidence for API Demonstration
 
@@ -661,7 +802,7 @@ The backend implementation will use the following workflow:
 1. Create the Flask application factory.
 2. Configure the SQLite database path.
 3. Initialize SQLAlchemy and Flask-Migrate.
-4. Define the six SQLAlchemy domain models plus user settings.
+4. Define the account, pet-care, medical-record, memory, settings, and Community SQLAlchemy models.
 5. Run `flask --app run.py init-db` to create missing tables and apply safe, idempotent SQLite schema upgrades.
 6. Keep existing local data while adding Medical Records links, custom reminder intervals, profile avatars, constraints, and indexes.
 7. Optionally run a seed command to create Dami, Roro, reminders, and memories for demonstration.
@@ -669,10 +810,10 @@ The backend implementation will use the following workflow:
 
 ## 13. Scope Notes
 
-- The current database contains five domain/account tables plus `user_settings`, six tables total.
+- The current database contains the core account and pet-care tables plus Medical Records and four Community interaction tables.
 - A separate Dashboard table is intentionally not used.
 - A separate Care History table is intentionally not used; completed reminders remain in `care_reminders`.
 - Reminder status is derived rather than stored.
 - Pet age is derived rather than stored.
 - Image files are not stored as database binary data; only validated paths or URLs are stored.
-- Data export and a hosted AI provider are future enhancements; the current Medical Records extractor runs locally.
+- Data export is handled by the frontend. Medical Records use local PDF/TXT extraction and can use the configured OpenAI model for structured image extraction.

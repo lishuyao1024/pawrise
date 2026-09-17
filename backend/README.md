@@ -1,86 +1,90 @@
 # PawRise Backend
 
-Flask and SQLite backend for the PawRise Milestone 2 capstone project.
+The PawRise backend is a Flask REST API for authentication, pet-care planning, medical-record processing, memories, Community interactions, account settings, uploads, and dashboard aggregation.
 
-## Current Foundation
+For the complete project overview, see the [root README](../README.md). The deployed application is available at [PawRise Production](https://pawrise-sylvia-20260810-htdvc8eng5bbdscc.canadacentral-01.azurewebsites.net/).
 
-- Flask application factory
-- Flask-SQLAlchemy database integration
-- Flask-Migrate migration support
-- JWT and CORS extensions
-- Five relational database models
-- SQLite foreign-key enforcement
-- Database initialization command
-- Health-check API
-- JWT registration, login, and current-user APIs
-- Authenticated pet create, read, update, and delete APIs
-- Care-reminder CRUD, filtering, completion, history, and recurrence APIs
-- Memory CRUD and timeline filtering APIs
-- Notification-settings read and update APIs
-- Read-only Dashboard aggregation API
-- Per-user resource isolation and pet-input validation
-- pytest schema and health-check tests
+## Technology
+
+- Python 3.12 and Flask
+- Flask-SQLAlchemy and SQLite
+- Flask-Migrate with safe additive SQLite upgrades
+- Flask-JWT-Extended authentication
+- Flask-CORS for separate-origin local development
+- pypdf and OpenAI-assisted medical extraction
+- Gunicorn for Azure App Service
+- pytest with an isolated in-memory database
 
 ## Local Setup
 
-From the `backend` directory:
+From `pawrise/backend`:
 
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
+Copy-Item .env.example .env
+flask --app run.py init-db
+python run.py
 ```
 
-Copy `.env.example` to `.env` and replace the development secret values.
+The API runs at `http://127.0.0.1:5000`. Check the application and database connection with:
 
-Initialize the local SQLite database:
+```powershell
+Invoke-RestMethod http://127.0.0.1:5000/api/health
+```
+
+The standard frontend uses relative `/api` requests. During local development, Vite proxies those requests to Flask.
+
+## Configuration
+
+| Variable | Purpose |
+|---|---|
+| `JWT_SECRET_KEY` | Signs JWT access tokens. Replace the example value. |
+| `FRONTEND_ORIGINS` | Comma-separated CORS origins for separate-origin development. |
+| `FLASK_DEBUG` | Enables local development diagnostics. |
+| `OPENAI_API_KEY` | Optional key for AI-assisted image record extraction. |
+| `OPENAI_MEDICAL_MODEL` | Model used for structured medical extraction. |
+| `PAWRISE_DATA_DIR` | Production database, upload, and medical-record storage root. |
+
+Do not commit `.env`, local databases, uploaded user files, or real credentials.
+
+## API Areas
+
+All application routes use the `/api` prefix.
+
+| Prefix | Responsibility |
+|---|---|
+| `/api/health` | API and database health |
+| `/api/auth` | Registration, login, and account profile |
+| `/api/pets` | Pet profile CRUD |
+| `/api/reminders` | Care planning, completion, recurrence, and history |
+| `/api/medical-records` | Upload, extraction drafts, confirmation, and linked reminders |
+| `/api/memories` | Private memory timeline CRUD |
+| `/api/community` | Posts, likes, reports, blocks, and moderation |
+| `/api/settings` | Notification preferences |
+| `/api/dashboard` | Aggregated home data |
+| `/api/uploads` | Authenticated image upload and delivery |
+
+Protected endpoints require `Authorization: Bearer <access-token>`. Queries are scoped to the authenticated user, and uploaded medical information never creates reminders until the user confirms the extracted draft.
+
+See [API Documentation](../support/API_DOCUMENTATION.md) for request and response details.
+
+## Database
+
+The local database is created at `backend/instance/pawrise.db`. The initialization command creates missing tables and applies narrow additive upgrades without intentionally deleting existing data:
 
 ```powershell
 flask --app run.py init-db
 ```
 
-Run the API:
+The schema covers users, settings, pets, reminders, medical records, memories, Community posts, likes, reports, and blocks. See [Database Design](../support/DATABASE_DESIGN.md).
+
+## Tests
 
 ```powershell
-python run.py
+.venv\Scripts\python.exe -m pytest
 ```
 
-The health endpoint is:
-
-```text
-GET http://127.0.0.1:5000/api/health
-```
-
-Implemented core endpoints:
-
-```text
-POST   /api/auth/register
-POST   /api/auth/login
-GET    /api/auth/me
-POST   /api/pets
-GET    /api/pets
-GET    /api/pets/{pet_id}
-PUT    /api/pets/{pet_id}
-DELETE /api/pets/{pet_id}
-POST   /api/reminders
-GET    /api/reminders
-PUT    /api/reminders/{reminder_id}
-DELETE /api/reminders/{reminder_id}
-POST   /api/reminders/{reminder_id}/complete
-GET    /api/reminders/history
-POST   /api/memories
-GET    /api/memories
-PUT    /api/memories/{memory_id}
-DELETE /api/memories/{memory_id}
-GET    /api/settings
-PUT    /api/settings
-GET    /api/dashboard
-```
-
-## Run Tests
-
-```powershell
-pytest
-```
-
-Tests use a separate in-memory SQLite database and do not modify the local development database.
+The recorded validation run passed all **112 backend tests**. Tests use a separate in-memory SQLite database and do not modify local development data. See [Test Results](../support/TEST_RESULTS.md).
