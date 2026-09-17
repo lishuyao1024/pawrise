@@ -1,0 +1,819 @@
+# PawRise Database Design
+
+## 1. Document Purpose
+
+This document defines the relational database design for the PawRise backend. The database supports authenticated user accounts, pet profiles, medical records, linked care reminders and history, pet memories, notification settings, Community interactions, and dashboard summaries.
+
+The design corresponds to the core APIs defined in [API_DOCUMENTATION.md](API_DOCUMENTATION.md).
+
+## 2. Database Technology
+
+| Item | Selection |
+|---|---|
+| Database | SQLite |
+| Backend language | Python |
+| Web framework | Flask |
+| Object-relational mapper | Flask-SQLAlchemy |
+| Migration tool | Flask-Migrate |
+| Local database file | `backend/instance/pawrise.db` |
+
+SQLite is appropriate for the first PawRise release because it is lightweight, requires no separate database server, and is easy to demonstrate locally. SQLAlchemy keeps the application models portable if the project later moves to PostgreSQL or another relational database.
+
+The local `.db` file is excluded from Git because it contains runtime data. SQLAlchemy models, migrations, initialization instructions, and optional seed data are committed so another user can recreate the database.
+
+## 3. Entity Relationship Diagram
+
+![PawRise database entity-relationship diagram](er_diagram.png)
+
+The standalone PNG documents the original Milestone 2 core. The implemented Medical Records and Community extensions are defined in the tables below; the SQLAlchemy models remain the implementation source of truth.
+
+## 4. Relationship Summary
+
+| Parent | Child | Relationship | Delete behavior |
+|---|---|---|---|
+| `users` | `pets` | One user can own many pets | Delete pets when the owning user is deleted |
+| `users` | `user_settings` | One user has exactly one settings row | Delete settings when the user is deleted |
+| `pets` | `care_reminders` | One pet can have many reminders | Delete reminders when the pet is deleted |
+| `pets` | `medical_records` | One pet can have many veterinary records | Delete records when the pet is deleted |
+| `pets` | `memories` | One pet can have many memories | Delete memories when the pet is deleted |
+| `care_reminders` | `care_reminders` | A completed repeating reminder may generate the next reminder | Keep the generated reminder if its source link is cleared |
+| `medical_records` | `care_reminders` | One confirmed record can generate many standard reminders | Set the source link to null when history is preserved |
+| `users` | `community_posts` | One user can publish many Community posts | Delete posts when the author is deleted |
+| `pets` | `community_posts` | One pet can appear in many Community posts | Delete posts when the pet is deleted |
+| `memories` | `community_posts` | A private memory can be shared as one Community post | Keep the post and clear the source link if the memory is deleted |
+| `community_posts` | `community_likes` | One post can receive likes from many users | Delete likes when the post is deleted |
+| `community_posts` | `community_reports` | One post can receive reports from many users | Delete reports when the post is deleted |
+| `users` | `community_blocks` | A user can block multiple other users | Delete block relationships with either user |
+
+All protected database queries must be scoped to the authenticated user. A user must never be able to read or modify another user's records.
+
+## 5. Table Definitions
+
+### 5.1 `users`
+
+Stores login and account identity information.
+
+| Column | SQLite type | Required | Key/default | Description |
+|---|---|---:|---|---|
+| `id` | INTEGER | Yes | Primary key, auto-increment | Internal user identifier |
+| `full_name` | VARCHAR(100) | Yes | — | User's display name |
+| `email` | VARCHAR(255) | Yes | Unique, indexed | Normalized login email |
+| `password_hash` | VARCHAR(255) | Yes | — | Secure password hash |
+| `avatar_url` | VARCHAR(500) | No | Null | Validated profile-image URL |
+| `role` | VARCHAR(20) | Yes | Default `user` | `user` or `admin` authorization role |
+| `created_at` | DATETIME | Yes | Current UTC time | Record creation time |
+| `updated_at` | DATETIME | Yes | Current UTC time | Last account update time |
+
+#### Constraints
+
+- `full_name` must not be blank.
+- `email` must be normalized to lowercase before storage.
+- `email` must be unique.
+- `role` is assigned by the backend; administrator access is never self-selected during registration.
+- Plain-text passwords must never be stored.
+- Passwords must contain at least eight characters before hashing.
+
+#### Example Row
+
+```json
+{
+  "id": 1,
+  "full_name": "Shuyao Li",
+  "email": "shuyao@example.com",
+  "password_hash": "<secure-hash>",
+  "avatar_url": "/api/uploads/profile-avatar.png",
+  "role": "user",
+  "created_at": "2026-07-24T20:00:00Z",
+  "updated_at": "2026-07-24T20:00:00Z"
+}
+```
+
+### 5.2 `pets`
+
+Stores pet profiles. Every pet belongs to one user.
+
+| Column | SQLite type | Required | Key/default | Description |
+|---|---|---:|---|---|
+| `id` | INTEGER | Yes | Primary key, auto-increment | Internal pet identifier |
+| `user_id` | INTEGER | Yes | Foreign key → `users.id`, indexed | Owner of the pet |
+| `name` | VARCHAR(100) | Yes | — | Pet name |
+| `species` | VARCHAR(50) | Yes | — | Animal type, such as Cat or Dog |
+| `sex` | VARCHAR(10) | No | NULL | Biological sex: `male` or `female` |
+| `breed` | VARCHAR(100) | No | NULL | Pet breed |
+| `birthday` | DATE | No | NULL | Date of birth |
+| `adoption_date` | DATE | No | NULL | Adoption date |
+| `weight_lb` | NUMERIC(6,2) | No | NULL | Current weight in pounds |
+| `image_url` | VARCHAR(500) | No | NULL | Stored image path or URL |
+| `notes` | TEXT | No | NULL | Profile notes |
+| `created_at` | DATETIME | Yes | Current UTC time | Record creation time |
+| `updated_at` | DATETIME | Yes | Current UTC time | Last profile update time |
+
+#### Constraints
+
+- `name` and `species` must not be blank.
+- `sex`, when supplied, must be `male` or `female`.
+- `birthday` and `adoption_date` cannot be future dates.
+- `weight_lb` must be greater than zero when supplied.
+- The API calculates age from `birthday`; age is not stored as editable text.
+- The authenticated user must own the pet before accessing or modifying it.
+
+#### Example Row
+
+```json
+{
+  "id": 1,
+  "user_id": 1,
+  "name": "Dami",
+  "species": "Cat",
+  "sex": "female",
+  "breed": "Siamese",
+  "birthday": "2023-04-18",
+  "adoption_date": "2023-06-12",
+  "weight_lb": 9.2,
+  "image_url": "/uploads/pets/dami-profile.png",
+  "notes": "Gentle, vocal, and happiest near the window."
+}
+```
+
+### 5.3 `care_reminders`
+
+Stores future care reminders and completed Care History items in the same table. A completed reminder is identified by a non-null `completed_at`.
+
+| Column | SQLite type | Required | Key/default | Description |
+|---|---|---:|---|---|
+| `id` | INTEGER | Yes | Primary key, auto-increment | Internal reminder identifier |
+| `pet_id` | INTEGER | Yes | Foreign key → `pets.id`, indexed | Pet receiving the care |
+| `source_reminder_id` | INTEGER | No | Self foreign key → `care_reminders.id` | Previous occurrence that generated this reminder |
+| `medical_record_id` | INTEGER | No | Foreign key → `medical_records.id`, indexed | Veterinary record that generated this reminder |
+| `care_type` | VARCHAR(30) | Yes | — | Type of planned care |
+| `custom_label` | VARCHAR(100) | No | NULL | User-defined label when `care_type` is `other` |
+| `due_date` | DATE | Yes | Indexed | Planned care date |
+| `repeat_rule` | VARCHAR(30) | Yes | Default `none` | Recurrence rule |
+| `repeat_interval` | INTEGER | No | NULL | User-selected interval from 1 to 999 when `repeat_rule` is `custom` |
+| `repeat_unit` | VARCHAR(10) | No | NULL | `day`, `week`, `month`, or `year` when `repeat_rule` is `custom` |
+| `notes` | TEXT | No | NULL | Reminder notes |
+| `completed_at` | DATETIME | No | NULL, indexed | Time the reminder was completed |
+| `created_at` | DATETIME | Yes | Current UTC time | Record creation time |
+| `updated_at` | DATETIME | Yes | Current UTC time | Last reminder update time |
+
+#### Allowed `care_type` Values
+
+```text
+vaccine
+deworming
+checkup
+medication
+weight
+activity
+grooming
+other
+```
+
+The UI labels `other` as **Custom**. A custom reminder stores the user's visible name, such as `Grooming`, in `custom_label`.
+
+#### Allowed `repeat_rule` Values
+
+```text
+none
+weekly
+every_2_weeks
+monthly
+every_2_months
+every_3_months
+every_6_months
+yearly
+custom
+```
+
+For `custom`, both `repeat_interval` and `repeat_unit` are required. For every
+other rule they remain `NULL`. For example, every three weeks is stored as
+`repeat_rule = custom`, `repeat_interval = 3`, and `repeat_unit = week`.
+
+#### Status Calculation
+
+The database does not store an editable `status` column. The backend calculates status when returning API data:
+
+```text
+If completed_at is not null:
+    status = completed
+Else if due_date is before today:
+    status = overdue
+Else if due_date is between today and today + default_lead_days:
+    status = due_soon
+Else:
+    status = upcoming
+```
+
+This avoids stale or contradictory data such as a past due date stored with an `upcoming` status.
+
+#### Repeating Reminder Completion
+
+Completing a repeating reminder uses one database transaction:
+
+1. Set the current reminder's `completed_at`.
+2. Calculate the next due date from `repeat_rule`.
+3. Create a new active reminder with `completed_at = NULL`.
+4. Set the new reminder's `source_reminder_id` to the completed reminder ID.
+5. Commit both changes together.
+
+If any step fails, the transaction is rolled back.
+
+#### Example Active Row
+
+```json
+{
+  "id": 1,
+  "pet_id": 1,
+  "source_reminder_id": null,
+  "care_type": "medication",
+  "custom_label": null,
+  "due_date": "2026-08-24",
+  "repeat_rule": "every_2_months",
+  "notes": "Flea prevention refill.",
+  "completed_at": null
+}
+```
+
+#### Example Completed Row
+
+```json
+{
+  "id": 1,
+  "pet_id": 1,
+  "source_reminder_id": null,
+  "care_type": "medication",
+  "due_date": "2026-08-24",
+  "repeat_rule": "every_2_months",
+  "notes": "Flea prevention refill.",
+  "completed_at": "2026-08-24T15:30:00Z"
+}
+```
+
+### 5.4 `medical_records`
+
+Stores the original veterinary instructions, a reviewable extraction draft, and the user-confirmed data. Confirmation creates linked rows in `care_reminders`; it does not create a separate task table.
+
+| Column | SQLite type | Required | Key/default | Description |
+|---|---|---:|---|---|
+| `id` | INTEGER | Yes | Primary key, auto-increment | Internal medical-record identifier |
+| `pet_id` | INTEGER | Yes | Foreign key → `pets.id`, indexed | Pet associated with the record |
+| `title` | VARCHAR(150) | Yes | — | User-facing record title |
+| `visit_date` | DATE | No | NULL, indexed | Veterinary visit date |
+| `original_filename` | VARCHAR(255) | No | NULL | Sanitized uploaded filename |
+| `stored_filename` | VARCHAR(255) | No | NULL | Randomized private storage filename |
+| `mime_type` | VARCHAR(100) | No | NULL | Validated upload MIME type |
+| `source_text` | TEXT | Yes | — | Extracted or pasted veterinary instructions |
+| `extracted_data` | JSON | Yes | Empty object | Reviewable extraction draft |
+| `confirmed_data` | JSON | No | NULL | User-confirmed extraction snapshot |
+| `status` | VARCHAR(20) | Yes | Default `draft` | `draft` or `confirmed` |
+| `confirmed_at` | DATETIME | No | NULL | UTC confirmation time |
+| `created_at` | DATETIME | Yes | Current UTC time | Record creation time |
+| `updated_at` | DATETIME | Yes | Current UTC time | Last record update time |
+
+#### Constraints
+
+- The authenticated user must own the associated pet.
+- Uploading creates only a `draft`; no reminder exists until confirmation.
+- A record can be confirmed once.
+- Editing a generated reminder does not change the original source text.
+- Deleting a record can remove incomplete linked reminders, while completed Care History is preserved by default.
+
+### 5.5 `memories`
+
+Stores pet photos and memory timeline content.
+
+| Column | SQLite type | Required | Key/default | Description |
+|---|---|---:|---|---|
+| `id` | INTEGER | Yes | Primary key, auto-increment | Internal memory identifier |
+| `pet_id` | INTEGER | Yes | Foreign key → `pets.id`, indexed | Related pet |
+| `title` | VARCHAR(150) | Yes | — | Memory title |
+| `memory_date` | DATE | Yes | Indexed | Date of the event |
+| `category` | VARCHAR(30) | No | NULL | Memory category |
+| `scene` | VARCHAR(150) | No | NULL | Short scene or location description |
+| `description` | TEXT | No | NULL | Memory story |
+| `image_url` | VARCHAR(500) | No | NULL | Stored image path or URL |
+| `created_at` | DATETIME | Yes | Current UTC time | Record creation time |
+| `updated_at` | DATETIME | Yes | Current UTC time | Last memory update time |
+
+#### Suggested Category Values
+
+```text
+birthday
+adoption
+daily_moment
+milestone
+growth
+other
+```
+
+#### Constraints
+
+- `title` and `memory_date` are required.
+- `memory_date` cannot be a future date.
+- The related pet must belong to the authenticated user.
+
+#### Example Row
+
+```json
+{
+  "id": 1,
+  "pet_id": 1,
+  "title": "Window sunshine nap",
+  "memory_date": "2026-07-08",
+  "category": "daily_moment",
+  "scene": "Quiet afternoon at home",
+  "description": "Dami found the warmest patch of light and stayed there until dinner.",
+  "image_url": "/uploads/memories/dami-window-nap.png"
+}
+```
+
+### 5.6 `user_settings`
+
+Stores one notification-settings row for each user.
+
+| Column | SQLite type | Required | Key/default | Description |
+|---|---|---:|---|---|
+| `user_id` | INTEGER | Yes | Primary key and foreign key → `users.id` | Settings owner |
+| `email_reminders` | BOOLEAN | Yes | Default `true` | Whether email reminders are enabled |
+| `default_lead_days` | INTEGER | Yes | Default `7` | Number of days used for `due_soon` |
+| `show_overdue_alerts` | BOOLEAN | Yes | Default `true` | Whether overdue reminders appear prominently |
+| `created_at` | DATETIME | Yes | Current UTC time | Record creation time |
+| `updated_at` | DATETIME | Yes | Current UTC time | Last settings update time |
+
+#### Constraints
+
+- Exactly one settings row is created when a user registers.
+- `default_lead_days` must be from 0 through 30.
+- Boolean values are stored by SQLAlchemy in a SQLite-compatible form.
+
+#### Example Row
+
+```json
+{
+  "user_id": 1,
+  "email_reminders": true,
+  "default_lead_days": 7,
+  "show_overdue_alerts": true,
+  "created_at": "2026-07-24T20:00:00Z",
+  "updated_at": "2026-07-24T20:00:00Z"
+}
+```
+
+### 5.7 `community_posts`
+
+Stores a public Community representation of an owned photo memory.
+
+| Column | SQLite type | Required | Key/default | Description |
+|---|---|---:|---|---|
+| `id` | INTEGER | Yes | Primary key | Community post identifier |
+| `user_id` | INTEGER | Yes | Foreign key → `users.id`, indexed | Post author |
+| `pet_id` | INTEGER | Yes | Foreign key → `pets.id`, indexed | Pet shown in the post |
+| `source_memory_id` | INTEGER | No | Foreign key → `memories.id` | Private memory used to create the post |
+| `title` | VARCHAR(150) | Yes | — | Copied memory title |
+| `body` | TEXT | No | Null | Copied memory description |
+| `image_url` | VARCHAR(500) | Yes | — | Required pet photo |
+| `status` | VARCHAR(20) | Yes | Default `published` | `published` or `hidden` moderation state |
+| `created_at` | DATETIME | Yes | Current UTC time | Post creation time |
+| `updated_at` | DATETIME | Yes | Current UTC time | Last moderation update |
+
+### 5.8 `community_likes`
+
+Stores one like per user and post. The composite uniqueness rule on (`post_id`, `user_id`) makes repeated like requests idempotent.
+
+| Column | SQLite type | Required | Key/default | Description |
+|---|---|---:|---|---|
+| `id` | INTEGER | Yes | Primary key | Like identifier |
+| `post_id` | INTEGER | Yes | Foreign key → `community_posts.id`, indexed | Liked post |
+| `user_id` | INTEGER | Yes | Foreign key → `users.id` | User who liked the post |
+| `created_at` | DATETIME | Yes | Current UTC time | Like creation time |
+| `updated_at` | DATETIME | Yes | Current UTC time | Last like update time |
+
+### 5.9 `community_reports`
+
+Stores one report per viewer and post. Resubmitting a report refreshes its reason and returns its status to `pending`.
+
+| Column | SQLite type | Required | Key/default | Description |
+|---|---|---:|---|---|
+| `id` | INTEGER | Yes | Primary key | Report identifier |
+| `post_id` | INTEGER | Yes | Foreign key → `community_posts.id` | Reported post |
+| `reporter_id` | INTEGER | Yes | Foreign key → `users.id` | Reporting user |
+| `reason` | VARCHAR(250) | Yes | — | User-supplied report reason |
+| `status` | VARCHAR(20) | Yes | Default `pending` | `pending` or `resolved` |
+| `created_at` | DATETIME | Yes | Current UTC time | Report creation time |
+| `updated_at` | DATETIME | Yes | Current UTC time | Last report update time |
+
+### 5.10 `community_blocks`
+
+Stores directional user blocks. The backend filters Community feeds in both directions when either user has blocked the other.
+
+| Column | SQLite type | Required | Key/default | Description |
+|---|---|---:|---|---|
+| `id` | INTEGER | Yes | Primary key | Block identifier |
+| `blocker_id` | INTEGER | Yes | Foreign key → `users.id` | User who created the block |
+| `blocked_user_id` | INTEGER | Yes | Foreign key → `users.id` | Hidden account |
+| `created_at` | DATETIME | Yes | Current UTC time | Block creation time |
+| `updated_at` | DATETIME | Yes | Current UTC time | Last block update time |
+
+The pair (`blocker_id`, `blocked_user_id`) is unique, and a user cannot block their own account.
+
+## 6. Index Design
+
+Indexes improve the queries used most frequently by the API.
+
+| Table | Index | Reason |
+|---|---|---|
+| `users` | Unique index on `email` | Fast login lookup and duplicate prevention |
+| `pets` | Index on `user_id` | List all pets for the current user |
+| `care_reminders` | Index on `pet_id` | Filter reminders by pet |
+| `care_reminders` | Index on `due_date` | Sort active reminders by nearest due date |
+| `care_reminders` | Index on `completed_at` | Separate active reminders from Care History |
+| `care_reminders` | Index on `medical_record_id` | Find reminders generated by one medical record |
+| `care_reminders` | Composite index on (`pet_id`, `completed_at`, `due_date`) | Support filtered active-reminder and history queries |
+| `medical_records` | Index on `pet_id` | List records for an owned pet |
+| `medical_records` | Index on `visit_date` | Order veterinary records by visit date |
+| `memories` | Index on `pet_id` | Filter memories by pet |
+| `memories` | Index on `memory_date` | Display the timeline in date order |
+| `community_posts` | Index on `created_at` | Display the newest Community posts first |
+| `community_posts` | Index on `user_id` | Filter posts by author |
+| `community_posts` | Index on `pet_id` | Filter and join posts by pet |
+| `community_likes` | Unique index on (`post_id`, `user_id`) | Prevent duplicate likes |
+| `community_reports` | Unique index on (`post_id`, `reporter_id`) | Keep one active report per viewer and post |
+| `community_blocks` | Unique index on (`blocker_id`, `blocked_user_id`) | Prevent duplicate block relationships |
+
+## 7. SQLite Reference Schema
+
+The SQLAlchemy models and migrations are the implementation source of truth. The following SQL illustrates the expected generated schema:
+
+```sql
+PRAGMA foreign_keys = ON;
+
+CREATE TABLE users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    full_name VARCHAR(100) NOT NULL,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    avatar_url VARCHAR(500),
+    role VARCHAR(20) NOT NULL DEFAULT 'user',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE pets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    species VARCHAR(50) NOT NULL,
+    sex VARCHAR(10),
+    breed VARCHAR(100),
+    birthday DATE,
+    adoption_date DATE,
+    weight_lb NUMERIC(6,2),
+    image_url VARCHAR(500),
+    notes TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT ck_pets_weight_positive
+        CHECK (weight_lb IS NULL OR weight_lb > 0),
+    CONSTRAINT ck_pets_sex_valid
+        CHECK (sex IS NULL OR sex IN ('male', 'female')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE medical_records (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pet_id INTEGER NOT NULL,
+    title VARCHAR(150) NOT NULL,
+    visit_date DATE,
+    original_filename VARCHAR(255),
+    stored_filename VARCHAR(255),
+    mime_type VARCHAR(100),
+    source_text TEXT NOT NULL,
+    extracted_data JSON NOT NULL,
+    confirmed_data JSON,
+    status VARCHAR(20) NOT NULL DEFAULT 'draft',
+    confirmed_at DATETIME,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT ck_medical_records_status CHECK (status IN ('draft', 'confirmed')),
+    FOREIGN KEY (pet_id) REFERENCES pets(id) ON DELETE CASCADE
+);
+
+CREATE TABLE care_reminders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pet_id INTEGER NOT NULL,
+    source_reminder_id INTEGER,
+    medical_record_id INTEGER,
+    care_type VARCHAR(30) NOT NULL,
+    custom_label VARCHAR(100),
+    due_date DATE NOT NULL,
+    repeat_rule VARCHAR(30) NOT NULL DEFAULT 'none',
+    repeat_interval INTEGER,
+    repeat_unit VARCHAR(10),
+    notes TEXT,
+    completed_at DATETIME,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT ck_reminders_care_type CHECK (
+        care_type IN (
+            'vaccine',
+            'deworming',
+            'checkup',
+            'medication',
+            'weight',
+            'activity',
+            'grooming',
+            'other'
+        )
+    ),
+    CONSTRAINT ck_reminders_repeat_rule CHECK (
+        repeat_rule IN (
+            'none',
+            'weekly',
+            'every_2_weeks',
+            'monthly',
+            'every_2_months',
+            'every_3_months',
+            'every_6_months',
+            'yearly',
+            'custom'
+        )
+    ),
+    CONSTRAINT ck_reminders_custom_repeat CHECK (
+        (
+            repeat_rule = 'custom'
+            AND repeat_interval IS NOT NULL
+            AND repeat_interval BETWEEN 1 AND 999
+            AND repeat_unit IS NOT NULL
+            AND repeat_unit IN ('day', 'week', 'month', 'year')
+        )
+        OR (
+            repeat_rule <> 'custom'
+            AND repeat_interval IS NULL
+            AND repeat_unit IS NULL
+        )
+    ),
+    FOREIGN KEY (pet_id) REFERENCES pets(id) ON DELETE CASCADE,
+    FOREIGN KEY (source_reminder_id)
+        REFERENCES care_reminders(id) ON DELETE SET NULL,
+    FOREIGN KEY (medical_record_id)
+        REFERENCES medical_records(id) ON DELETE SET NULL
+);
+
+CREATE TABLE memories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pet_id INTEGER NOT NULL,
+    title VARCHAR(150) NOT NULL,
+    memory_date DATE NOT NULL,
+    category VARCHAR(30),
+    scene VARCHAR(150),
+    description TEXT,
+    image_url VARCHAR(500),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (pet_id) REFERENCES pets(id) ON DELETE CASCADE
+);
+
+CREATE TABLE user_settings (
+    user_id INTEGER PRIMARY KEY,
+    email_reminders BOOLEAN NOT NULL DEFAULT 1,
+    default_lead_days INTEGER NOT NULL DEFAULT 7,
+    show_overdue_alerts BOOLEAN NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT ck_settings_lead_days
+        CHECK (default_lead_days BETWEEN 0 AND 30),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE community_posts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    pet_id INTEGER NOT NULL,
+    source_memory_id INTEGER,
+    title VARCHAR(150) NOT NULL,
+    body TEXT,
+    image_url VARCHAR(500) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'published',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK (status IN ('published', 'hidden')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (pet_id) REFERENCES pets(id) ON DELETE CASCADE,
+    FOREIGN KEY (source_memory_id) REFERENCES memories(id) ON DELETE SET NULL
+);
+
+CREATE TABLE community_likes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    post_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (post_id, user_id),
+    FOREIGN KEY (post_id) REFERENCES community_posts(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE community_reports (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    post_id INTEGER NOT NULL,
+    reporter_id INTEGER NOT NULL,
+    reason VARCHAR(250) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (post_id, reporter_id),
+    CHECK (status IN ('pending', 'resolved')),
+    FOREIGN KEY (post_id) REFERENCES community_posts(id) ON DELETE CASCADE,
+    FOREIGN KEY (reporter_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE community_blocks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    blocker_id INTEGER NOT NULL,
+    blocked_user_id INTEGER NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (blocker_id, blocked_user_id),
+    CHECK (blocker_id <> blocked_user_id),
+    FOREIGN KEY (blocker_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (blocked_user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX ix_pets_user_id
+    ON pets(user_id);
+
+CREATE INDEX ix_reminders_pet_id
+    ON care_reminders(pet_id);
+
+CREATE INDEX ix_reminders_due_date
+    ON care_reminders(due_date);
+
+CREATE INDEX ix_reminders_completed_at
+    ON care_reminders(completed_at);
+
+CREATE INDEX ix_reminders_medical_record_id
+    ON care_reminders(medical_record_id);
+
+CREATE INDEX ix_reminders_pet_completion_due
+    ON care_reminders(pet_id, completed_at, due_date);
+
+CREATE INDEX ix_medical_records_pet_id
+    ON medical_records(pet_id);
+
+CREATE INDEX ix_medical_records_visit_date
+    ON medical_records(visit_date);
+
+CREATE INDEX ix_memories_pet_id
+    ON memories(pet_id);
+
+CREATE INDEX ix_memories_memory_date
+    ON memories(memory_date);
+
+CREATE INDEX ix_community_posts_created_at
+    ON community_posts(created_at);
+
+CREATE INDEX ix_community_posts_user_id
+    ON community_posts(user_id);
+
+CREATE INDEX ix_community_posts_pet_id
+    ON community_posts(pet_id);
+```
+
+## 8. API-to-Table Mapping
+
+| API area | Main tables read | Main tables modified |
+|---|---|---|
+| Registration | `users` | `users`, `user_settings` |
+| Login/current user | `users` | None |
+| Pet APIs | `pets` | `pets` |
+| Reminder APIs | `pets`, `care_reminders`, `user_settings` | `care_reminders` |
+| Medical Record APIs | `pets`, `medical_records`, `care_reminders` | `medical_records`, `care_reminders` |
+| Memory APIs | `pets`, `memories` | `memories` |
+| Community APIs | `users`, `pets`, `memories`, `community_posts`, `community_likes`, `community_reports`, `community_blocks` | `community_posts`, `community_likes`, `community_reports`, `community_blocks` |
+| Settings APIs | `user_settings` | `user_settings` |
+| Dashboard | `users`, `pets`, `care_reminders`, `memories`, `user_settings` | None |
+| Health check | Database connection metadata | None |
+
+## 9. Dashboard Data Design
+
+The Dashboard is a read-only summary and does not require a separate table. Its API combines:
+
+- Pet overview cards from `pets`
+- Active reminders from `care_reminders` where `completed_at IS NULL`
+- Overdue reminders calculated from `due_date`
+- Recent memories from `memories`
+- `due_soon` lead time from `user_settings`
+
+This prevents duplicate dashboard data from becoming inconsistent with the source records.
+
+## 10. Data Integrity and Transaction Rules
+
+1. Registration creates both `users` and `user_settings` rows in one transaction.
+2. Deleting a user cascades to settings, pets, reminders, memories, posts, likes, reports, and block relationships.
+3. Deleting a pet cascades to its reminders, memories, and Community posts.
+4. Completing a repeating reminder updates the current row and inserts the next row in one transaction.
+5. Failed validation must not write partial data.
+6. All timestamps are generated by the backend in UTC.
+7. SQLite foreign-key enforcement must be enabled for every database connection.
+8. API serialization must never include `password_hash`.
+9. Community likes, reports, and blocks use uniqueness constraints so repeated requests cannot create duplicate relationships.
+
+## 11. Database Evidence for API Demonstration
+
+During the Milestone 2 video, the database should be inspected after every modifying operation.
+
+### Registration
+
+```sql
+SELECT id, full_name, email, created_at
+FROM users;
+
+SELECT *
+FROM user_settings;
+```
+
+Expected evidence: one new user row and one default settings row.
+
+### Pet CRUD
+
+```sql
+SELECT *
+FROM pets
+ORDER BY id;
+```
+
+Expected evidence:
+
+- POST adds a row.
+- PUT changes the selected row.
+- DELETE removes the selected row and its related records.
+
+### Reminder CRUD and Completion
+
+```sql
+SELECT
+    id,
+    pet_id,
+    source_reminder_id,
+    care_type,
+    due_date,
+    repeat_rule,
+    completed_at
+FROM care_reminders
+ORDER BY id;
+```
+
+Expected evidence:
+
+- POST adds an active row.
+- PUT changes the selected row.
+- Complete sets `completed_at`.
+- Completing a repeating reminder also creates its next active row.
+- DELETE removes the selected row.
+
+### Memory CRUD
+
+```sql
+SELECT *
+FROM memories
+ORDER BY memory_date DESC;
+```
+
+Expected evidence:
+
+- POST adds a row.
+- PUT changes the selected row.
+- DELETE removes the selected row.
+
+### Settings Update
+
+```sql
+SELECT *
+FROM user_settings
+WHERE user_id = 1;
+```
+
+Expected evidence: PUT changes the existing settings row rather than creating duplicate rows.
+
+## 12. Database Initialization Plan
+
+The backend implementation will use the following workflow:
+
+1. Create the Flask application factory.
+2. Configure the SQLite database path.
+3. Initialize SQLAlchemy and Flask-Migrate.
+4. Define the account, pet-care, medical-record, memory, settings, and Community SQLAlchemy models.
+5. Run `flask --app run.py init-db` to create missing tables and apply safe, idempotent SQLite schema upgrades.
+6. Keep existing local data while adding Medical Records links, custom reminder intervals, profile avatars, constraints, and indexes.
+7. Optionally run a seed command to create Dami, Roro, reminders, and memories for demonstration.
+8. Run automated tests against a separate temporary test database.
+
+## 13. Scope Notes
+
+- The current database contains the core account and pet-care tables plus Medical Records and four Community interaction tables.
+- A separate Dashboard table is intentionally not used.
+- A separate Care History table is intentionally not used; completed reminders remain in `care_reminders`.
+- Reminder status is derived rather than stored.
+- Pet age is derived rather than stored.
+- Image files are not stored as database binary data; only validated paths or URLs are stored.
+- Data export is handled by the frontend. Medical Records use local PDF/TXT extraction and can use the configured OpenAI model for structured image extraction.

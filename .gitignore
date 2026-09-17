@@ -42,7 +42,11 @@ Thumbs.db
 # Temporary files
 tmp/
 temp/
+tempcontent/
 *.tmp
+
+# Locally generated deployment bundles
+deliverables/deployment/
 
 # Local Postman workspace metadata
 .postman/
